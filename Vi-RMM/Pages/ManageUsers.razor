@@ -1,0 +1,178 @@
+@page "/users"
+@using ViRMM.Services
+@using ViRMM.Models
+@inject UserStore Users
+
+<PageTitle>Manage Users - Vi-RMM</PageTitle>
+
+<div class="page-container">
+    <div class="page-header">
+        <div>
+            <div class="eyebrow">Administration</div>
+            <h1>Manage Users</h1>
+            <p>Create accounts, assign roles, reset passwords and manage access.</p>
+        </div>
+        <button class="primary-button" @onclick="OpenCreate">＋ Create User</button>
+    </div>
+
+    <div class="user-table">
+        <div class="user-head"><span>User</span><span>Username</span><span>Role</span><span>Status</span><span>Actions</span></div>
+        @foreach (var user in Users.All)
+        {
+            <div class="user-row">
+                <div class="user-cell">
+                    @if (!string.IsNullOrWhiteSpace(user.ProfileImage))
+                    {
+                        <img src="@user.ProfileImage" class="avatar" alt="" />
+                    }
+                    else
+                    {
+                        <span class="avatar initials">@Initials(user.FullName)</span>
+                    }
+                    <div><strong>@user.FullName</strong><small>@user.Email</small></div>
+                </div>
+                <span>@user.Username</span>
+                <span><span class="role-pill">@user.Role</span></span>
+                <span><span class="status-pill active">@((user.IsActive) ? "Active" : "Disabled")</span></span>
+                <span class="actions">
+                    <button @onclick="() => Edit(user.Id)">Edit</button>
+                    <button @onclick="() => Reset(user.Id)">Reset Password</button>
+                    <button class="danger-text" @onclick="() => Delete(user.Id)">Delete</button>
+                </span>
+            </div>
+        }
+    </div>
+</div>
+
+@if (showForm)
+{
+    <div class="modal-backdrop">
+        <div class="modal">
+            <div class="modal-header">
+                <div><div class="eyebrow">User account</div><h2>@(editingId is null ? "Create User" : "Edit User")</h2></div>
+                <button class="icon-button" @onclick="CloseForm">×</button>
+            </div>
+
+            <div class="form-grid">
+                <label>Full Name<input @bind="form.FullName" /></label>
+                <label>Username / Login<input @bind="form.Username" /></label>
+                <label>Email<input @bind="form.Email" type="email" /></label>
+                <label>Role
+                    <select @bind="form.Role">
+                        <option>Administrator</option>
+                        <option>Technician</option>
+                        <option>Read Only</option>
+                    </select>
+                </label>
+                @if (editingId is null)
+                {
+                    <label>Password<input @bind="form.Password" type="password" /></label>
+                }
+                <label class="checkbox-label"><input @bind="form.IsActive" type="checkbox" /> Account active</label>
+            </div>
+
+            <div class="modal-actions">
+                <button class="secondary-button" @onclick="CloseForm">Cancel</button>
+                <button class="primary-button" @onclick="SaveUser">@(editingId is null ? "Create User" : "Save Changes")</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool showForm;
+    private Guid? editingId;
+    private UserForm form = new();
+
+    private void OpenCreate()
+    {
+        editingId = null;
+        form = new UserForm { Role = "Technician", IsActive = true };
+        showForm = true;
+    }
+
+    private void Edit(Guid id)
+    {
+        var user = Users.Find(id);
+        if (user is null) return;
+
+        editingId = id;
+        form = new UserForm
+        {
+            FullName = user.FullName,
+            Username = user.Username,
+            Email = user.Email,
+            Role = user.Role,
+            IsActive = user.IsActive
+        };
+        showForm = true;
+    }
+
+    private void SaveUser()
+    {
+        if (string.IsNullOrWhiteSpace(form.FullName) ||
+            string.IsNullOrWhiteSpace(form.Username) ||
+            string.IsNullOrWhiteSpace(form.Email))
+            return;
+
+        if (editingId is null)
+        {
+            Users.Add(new AppUser
+            {
+                FullName = form.FullName.Trim(),
+                Username = form.Username.Trim(),
+                Email = form.Email.Trim(),
+                Role = form.Role,
+                IsActive = form.IsActive,
+                Password = string.IsNullOrWhiteSpace(form.Password) ? "ChangeMe123!" : form.Password
+            });
+        }
+        else
+        {
+            var user = Users.Find(editingId.Value);
+            if (user is not null)
+            {
+                user.FullName = form.FullName.Trim();
+                user.Username = form.Username.Trim();
+                user.Email = form.Email.Trim();
+                user.Role = form.Role;
+                user.IsActive = form.IsActive;
+                Users.Save(user);
+            }
+        }
+
+        CloseForm();
+    }
+
+    private void Reset(Guid id)
+    {
+        var user = Users.Find(id);
+        if (user is null) return;
+
+        user.Password = "ChangeMe123!";
+        Users.Save(user);
+    }
+
+    private void Delete(Guid id)
+    {
+        Users.Delete(id);
+    }
+
+    private void CloseForm() => showForm = false;
+
+    private static string Initials(string name)
+    {
+        var p = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return p.Length == 1 ? p[0][..Math.Min(2, p[0].Length)].ToUpperInvariant() : $"{p[0][0]}{p[^1][0]}".ToUpperInvariant();
+    }
+
+    private sealed class UserForm
+    {
+        public string FullName { get; set; } = "";
+        public string Username { get; set; } = "";
+        public string Email { get; set; } = "";
+        public string Role { get; set; } = "Technician";
+        public string Password { get; set; } = "";
+        public bool IsActive { get; set; } = true;
+    }
+}

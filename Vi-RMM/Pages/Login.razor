@@ -1,0 +1,52 @@
+@page "/login"
+@using ViRMM.Services
+@using Microsoft.AspNetCore.Components.Web
+@inject UserStore Users
+@inject SessionState Session
+@inject NavigationManager Navigation
+
+<PageTitle>Sign In - Vi-RMM</PageTitle>
+
+<div class="login-page">
+    <div class="login-card">
+        <div class="brand-mark large">V</div>
+        <h1>Welcome to Vi-RMM</h1>
+        <p>Sign in to your remote management console.</p>
+
+        <label>Username<input @bind="username" @bind:event="oninput" /></label>
+        <label>Password<input @bind="password" type="password" @onkeydown="HandleKey" /></label>
+
+        @if (!string.IsNullOrWhiteSpace(error))
+        {
+            <div class="error-box">@error</div>
+        }
+
+        <button class="primary-button full" @onclick="SignIn">Sign In</button>
+        <small class="demo-hint">Demo: admin / ChangeMe123!</small>
+    </div>
+</div>
+
+@code {
+    private string username = "";
+    private string password = "";
+    private string error = "";
+
+    private void SignIn()
+    {
+        var user = Users.Authenticate(username, password);
+        if (user is null)
+        {
+            error = "Invalid username or password.";
+            return;
+        }
+
+        Session.SignIn(user);
+        Navigation.NavigateTo("/");
+    }
+
+    private Task HandleKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") SignIn();
+        return Task.CompletedTask;
+    }
+}

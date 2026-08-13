@@ -1,0 +1,91 @@
+@page "/"
+
+<PageTitle>Vi-RMM Dashboard</PageTitle>
+
+<div class="dashboard">
+    <aside class="sidebar">
+        <div class="side-home active">⌂ <span>All Clients</span></div>
+        <div class="client-tree">▸ 🏢 Company 1</div>
+        <div class="client-tree">▸ 🏢 Company 2</div>
+        <div class="client-tree">▸ 🏢 Company 3</div>
+        <div class="client-tree">▸ 🏢 Company 4</div>
+        <div class="client-tree">▸ 🏢 Company 5</div>
+        <div class="client-tree">▸ 🏢 Company 6</div>
+    </aside>
+
+    <section class="dashboard-content">
+        <div class="view-tabs">
+            <button class="active">Servers</button>
+            <button>Workstations</button>
+            <button>Mixed</button>
+            <input placeholder="⌕  Search" />
+        </div>
+
+        <div class="device-table">
+            <div class="table-head">
+                <span>Client</span><span>Site</span><span>Hostname</span><span>User</span><span>Status</span><span>Last Response</span>
+            </div>
+            @foreach (var device in devices)
+            {
+                <div class="table-row">
+                    <span>@device.Client</span>
+                    <span>@device.Site</span>
+                    <span class="hostname">@device.Hostname</span>
+                    <span>@device.User</span>
+                    <span><b class="status-dot @device.Status.ToLowerInvariant()"></b>@device.Status</span>
+                    <span>Just now</span>
+                </div>
+            }
+        </div>
+
+        <div class="asset-tabs">
+            <span class="selected">Summary</span>
+            <span>Checks</span><span>Tasks</span><span>Patches</span><span>Software</span>
+            <span>History</span><span>Notes</span><span>Assets</span><span>Audit</span>
+        </div>
+
+        <div class="machine-summary">
+            <div class="machine-title">
+                <span class="online-dot"></span>
+                <strong>PC-CPT-001</strong>
+                <span>Windows 11 Pro · Vi-RMM Agent 1.0.0</span>
+                <button>Take Control</button>
+            </div>
+
+            <div class="summary-grid">
+                <div class="summary-card">
+                    <h3>Hardware Details</h3>
+                    <p>▣ Intel Core i7 · 8 Cores</p>
+                    <p>▦ 16 GB RAM</p>
+                    <p>▤ 512 GB NVMe SSD</p>
+                    <p>▣ Intel UHD Graphics</p>
+                </div>
+                <div class="summary-card">
+                    <h3>Checks Status</h3>
+                    <div class="check-number">✓</div>
+                    <strong>9 checks passing</strong>
+                    <p class="muted">All current checks are healthy.</p>
+                </div>
+                <div class="summary-card">
+                    <h3>Disks</h3>
+                    <p>C: (NTFS)</p>
+                    <div class="progress"><div style="width:72%"></div></div>
+                    <strong>144 GB free of 512 GB</strong>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>
+
+@code {
+    private readonly Device[] devices =
+    [
+        new("Company 1", "Cape Town HQ", "PC-CPT-001", "Ashley", "Online"),
+        new("Company 2", "Cape Town HQ", "PC-CPT-002", "John", "Online"),
+        new("Company 3", "London Office", "SRV-LON-001", "System", "Warning"),
+        new("Company 4", "New York", "PC-NY-014", "Sarah", "Online"),
+        new("Company 5", "Cape Town", "PC-CPT-018", "Karen", "Offline")
+    ];
+
+    private record Device(string Client, string Site, string Hostname, string User, string Status);
+}
