@@ -1,0 +1,118 @@
+@page "/tools/scripts"
+@inject ScriptService Scripts
+@inject AgentService AgentSvc
+@inject AuditService AuditSvc
+@inject SessionState Session
+
+<PageTitle>Script Runner - Vi-RMM</PageTitle>
+
+<div class="page-container">
+    <div class="page-header">
+        <div>
+            <div class="eyebrow">Automation & Tools</div>
+            <h1>Script Library & Bulk Execution</h1>
+            <p>Deploy PowerShell maintenance and diagnostics scripts across one or multiple endpoints simultaneously.</p>
+        </div>
+    </div>
+
+    <div class="summary-grid" style="grid-template-columns: 1.2fr 1fr;">
+        <div>
+            <h3>Available Automation Scripts</h3>
+            <div class="script-list">
+                @foreach (var script in Scripts.All)
+                {
+                    <div class="summary-card script-item @(selectedScript?.Id == script.Id ? "selected-card" : "")"
+                         @onclick="() => selectedScript = script" style="margin-bottom:12px;cursor:pointer;">
+                        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+                            <div>
+                                <strong>@script.Name</strong>
+                                <span class="cat-badge" style="margin-left:8px;">@script.Category</span>
+                            </div>
+                            <span class="role-pill">@script.Shell</span>
+                        </div>
+                        <p class="muted" style="margin:8px 0;">@script.Description</p>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div>
+            <h3>Execute Script</h3>
+            @if (selectedScript != null)
+            {
+                <div class="summary-card">
+                    <h4>@selectedScript.Name</h4>
+                    <p class="muted">@selectedScript.Description</p>
+
+                    <label style="display:block;margin:12px 0 6px;font-weight:700;font-size:12px;">Script Code:</label>
+                    <pre class="script-preview">@selectedScript.ScriptBody</pre>
+
+                    <label style="display:block;margin:12px 0 6px;font-weight:700;font-size:12px;">Select Target Endpoint:</label>
+                    <select class="full-input" @bind="targetAgentId">
+                        <option value="">-- Select Target Agent --</option>
+                        @foreach (var agent in AgentSvc.GetAllAgents())
+                        {
+                            <option value="@agent.AgentId">@agent.Hostname (@agent.Client - @agent.Site) [@agent.Status]</option>
+                        }
+                    </select>
+
+                    <button class="primary-button" style="margin-top:16px;width:100%;"
+                            @onclick="RunScriptOnTarget"
+                            disabled="@(string.IsNullOrEmpty(targetAgentId) || isExecuting)">
+                        @(isExecuting ? "Executing Script..." : "▶ Run Script on Selected Endpoint")
+                    </button>
+
+                    @if (!string.IsNullOrEmpty(executionStatus))
+                    {
+                        <div class="status-box" style="margin-top:12px;padding:10px;background:#1e293b;border-radius:6px;font-family:monospace;font-size:12px;">
+                            @executionStatus
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="summary-card">
+                    <p class="muted">Select a script from the library on the left to review its code and execute it on an endpoint.</p>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private RmmScript? selectedScript;
+    private string targetAgentId = "";
+    private bool isExecuting;
+    private string executionStatus = "";
+
+    protected override void OnInitialized()
+    {
+        selectedScript = Scripts.All.FirstOrDefault();
+        var firstAgent = AgentSvc.GetAllAgents().FirstOrDefault();
+        if (firstAgent != null) targetAgentId = firstAgent.AgentId;
+    }
+
+    private async Task RunScriptOnTarget()
+    {
+        if (selectedScript == null || string.IsNullOrEmpty(targetAgentId)) return;
+
+        var target = AgentSvc.GetAgent(targetAgentId);
+        isExecuting = true;
+        executionStatus = $"Dispatching '{selectedScript.Name}' to {target?.Hostname ?? "Endpoint"}...";
+
+        AuditSvc.Log(
+            Session.CurrentUser?.FullName ?? "Admin",
+            target?.Hostname ?? "Endpoint",
+            "Bulk Script Execution",
+            "Command",
+            $"Ran {selectedScript.Name}"
+        );
+
+        await AgentSvc.ExecuteCommandAsync(targetAgentId, selectedScript.ScriptBody, selectedScript.Shell);
+        
+        await Task.Delay(1000);
+        isExecuting = false;
+        executionStatus = $"Script dispatched successfully to {target?.Hostname}. Check the Terminal / History tab on the endpoint to view full live results.";
+    }
+}

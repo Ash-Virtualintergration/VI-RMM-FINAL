@@ -1,91 +1,601 @@
 @page "/"
+@inject AgentService AgentSvc
+@inject AuditService AuditSvc
+@inject SessionState Session
+@implements IDisposable
 
 <PageTitle>Vi-RMM Dashboard</PageTitle>
 
 <div class="dashboard">
     <aside class="sidebar">
-        <div class="side-home active">⌂ <span>All Clients</span></div>
-        <div class="client-tree">▸ 🏢 Company 1</div>
-        <div class="client-tree">▸ 🏢 Company 2</div>
-        <div class="client-tree">▸ 🏢 Company 3</div>
-        <div class="client-tree">▸ 🏢 Company 4</div>
-        <div class="client-tree">▸ 🏢 Company 5</div>
-        <div class="client-tree">▸ 🏢 Company 6</div>
+        <div class="side-header">
+            <div class="side-home @(selectedClient == null && selectedSite == null ? "active" : "")" @onclick="SelectAllClients">
+                ⌂ <span>All Clients</span>
+                <span class="badge">@AllAgents.Count</span>
+            </div>
+            <button type="button" class="add-client-btn" @onclick="() => showAddClientModal = true" title="Add Client">+ Add Client</button>
+        </div>
+
+        <div class="client-tree-section">
+            @foreach (var clientGroup in ClientGroups)
+            {
+                <div class="client-node @(selectedClient == clientGroup.Key ? "active" : "")">
+                    <div class="client-title" @onclick="() => ToggleClient(clientGroup.Key)">
+                        <span class="tree-arrow">@(expandedClients.Contains(clientGroup.Key) ? "▾" : "▸")</span>
+                        <span class="client-icon">🏢</span>
+                        <span class="client-name">@clientGroup.Key</span>
+                        <span class="client-count">@clientGroup.Count()</span>
+                    </div>
+
+                    @if (expandedClients.Contains(clientGroup.Key))
+                    {
+                        <div class="site-list">
+                            @foreach (var site in clientGroup.Select(a => a.Site).Distinct())
+                            {
+                                <div class="site-item @(selectedSite == site && selectedClient == clientGroup.Key ? "active" : "")"
+                                     @onclick="() => SelectSite(clientGroup.Key, site)">
+                                    📍 <span>@site</span>
+                                    <span class="site-count">@clientGroup.Count(a => a.Site == site)</span>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </div>
     </aside>
 
     <section class="dashboard-content">
         <div class="view-tabs">
-            <button class="active">Servers</button>
-            <button>Workstations</button>
-            <button>Mixed</button>
-            <input placeholder="⌕  Search" />
-        </div>
-
-        <div class="device-table">
-            <div class="table-head">
-                <span>Client</span><span>Site</span><span>Hostname</span><span>User</span><span>Status</span><span>Last Response</span>
-            </div>
-            @foreach (var device in devices)
-            {
-                <div class="table-row">
-                    <span>@device.Client</span>
-                    <span>@device.Site</span>
-                    <span class="hostname">@device.Hostname</span>
-                    <span>@device.User</span>
-                    <span><b class="status-dot @device.Status.ToLowerInvariant()"></b>@device.Status</span>
-                    <span>Just now</span>
-                </div>
-            }
-        </div>
-
-        <div class="asset-tabs">
-            <span class="selected">Summary</span>
-            <span>Checks</span><span>Tasks</span><span>Patches</span><span>Software</span>
-            <span>History</span><span>Notes</span><span>Assets</span><span>Audit</span>
-        </div>
-
-        <div class="machine-summary">
-            <div class="machine-title">
-                <span class="online-dot"></span>
-                <strong>PC-CPT-001</strong>
-                <span>Windows 11 Pro · Vi-RMM Agent 1.0.0</span>
-                <button>Take Control</button>
+            <div class="tab-filters">
+                <button type="button" class="@(viewFilter == "All" ? "active" : "")" @onclick='() => SetViewFilter("All")'>
+                    All (@AllAgents.Count)
+                </button>
+                <button type="button" class="@(viewFilter == "Servers" ? "active" : "")" @onclick='() => SetViewFilter("Servers")'>
+                    Servers (@AllAgents.Count(a => a.OperatingSystem.Contains("Server", StringComparison.OrdinalIgnoreCase)))
+                </button>
+                <button type="button" class="@(viewFilter == "Workstations" ? "active" : "")" @onclick='() => SetViewFilter("Workstations")'>
+                    Workstations (@AllAgents.Count(a => !a.OperatingSystem.Contains("Server", StringComparison.OrdinalIgnoreCase)))
+                </button>
+                <button type="button" class="@(viewFilter == "Live" ? "active" : "")" @onclick='() => SetViewFilter("Live")'>
+                    ⚡ Live Connected (@AllAgents.Count(a => a.IsLiveConnected))
+                </button>
+                <button type="button" class="@(viewFilter == "Alerts" ? "active" : "")" @onclick='() => SetViewFilter("Alerts")'>
+                    ⚠️ Alerts (@AllAgents.Count(a => a.Status != "Online"))
+                </button>
             </div>
 
-            <div class="summary-grid">
-                <div class="summary-card">
-                    <h3>Hardware Details</h3>
-                    <p>▣ Intel Core i7 · 8 Cores</p>
-                    <p>▦ 16 GB RAM</p>
-                    <p>▤ 512 GB NVMe SSD</p>
-                    <p>▣ Intel UHD Graphics</p>
-                </div>
-                <div class="summary-card">
-                    <h3>Checks Status</h3>
-                    <div class="check-number">✓</div>
-                    <strong>9 checks passing</strong>
-                    <p class="muted">All current checks are healthy.</p>
-                </div>
-                <div class="summary-card">
-                    <h3>Disks</h3>
-                    <p>C: (NTFS)</p>
-                    <div class="progress"><div style="width:72%"></div></div>
-                    <strong>144 GB free of 512 GB</strong>
-                </div>
+            <div class="search-wrap">
+                <span class="search-icon">⌕</span>
+                <input @bind="searchQuery" @bind:event="oninput" placeholder="Search hostname, user, IP, OS..." />
             </div>
         </div>
+
+        <div class="device-table-container">
+            <div class="device-table">
+                <div class="table-head">
+                    <span>Client</span>
+                    <span>Site</span>
+                    <span>Hostname</span>
+                    <span>User</span>
+                    <span>IP / OS</span>
+                    <span>Status</span>
+                    <span>CPU / RAM</span>
+                    <span>Last Response</span>
+                    <span style="text-align:right">Quick Control</span>
+                </div>
+
+                @if (FilteredDevices.Any())
+                {
+                    @foreach (var device in FilteredDevices)
+                    {
+                        var isSelected = selectedAgent?.AgentId == device.AgentId;
+                        <div class="table-row @(isSelected ? "selected-row" : "")" @onclick="() => SelectDevice(device)">
+                            <span class="cell-client">@device.Client</span>
+                            <span class="cell-site">@device.Site</span>
+                            <span class="hostname">
+                                @if (device.IsLiveConnected)
+                                {
+                                    <span class="live-tag">LIVE</span>
+                                }
+                                <strong>@device.Hostname</strong>
+                            </span>
+                            <span>@device.User</span>
+                            <span class="cell-os" title="@device.OperatingSystem">
+                                @(string.IsNullOrEmpty(device.Registration.LocalIp) ? "127.0.0.1" : device.Registration.LocalIp)
+                                <small>@FormatOs(device.OperatingSystem)</small>
+                            </span>
+                            <span>
+                                <b class="status-dot @device.Status.ToLowerInvariant()"></b>
+                                @device.Status
+                            </span>
+                            <span class="cell-metrics">
+                                <div class="mini-metric">
+                                    <span class="metric-label">CPU:</span>
+                                    <div class="mini-bar"><div style="width:@((int)device.CpuPercent)%"></div></div>
+                                    <span>@((int)device.CpuPercent)%</span>
+                                </div>
+                                <div class="mini-metric">
+                                    <span class="metric-label">RAM:</span>
+                                    <div class="mini-bar"><div style="width:@((int)device.MemoryUsedPercent)%"></div></div>
+                                    <span>@((int)device.MemoryUsedPercent)%</span>
+                                </div>
+                            </span>
+                            <span>@device.LastSeenFormatted</span>
+                            <span class="row-actions" @onclick:stopPropagation="true">
+                                <button type="button" class="row-btn" @onclick='() => OpenDirectTab(device, "Terminal")' title="Open Terminal">💻</button>
+                                <button type="button" class="row-btn" @onclick='() => OpenDirectTab(device, "Remote")' title="Remote Desktop">🖥️</button>
+                                <button type="button" class="row-btn" @onclick='() => OpenDirectTab(device, "Files")' title="File Manager">📁</button>
+                            </span>
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="empty-table" style="padding:30px;text-align:center;">
+                        <p class="muted">No endpoints match the selected filter.</p>
+                        <a href="/agents/install" class="primary-button">＋ Deploy New Agent</a>
+                    </div>
+                }
+            </div>
+        </div>
+
+        @if (selectedAgent != null)
+        {
+            <div class="asset-tabs">
+                <button type="button" class="@(activeTab == "Summary" ? "selected" : "")" @onclick='() => SetTab("Summary")'>📊 Summary</button>
+                <button type="button" class="@(activeTab == "Terminal" ? "selected" : "")" @onclick='() => SetTab("Terminal")'>💻 Terminal / Execute</button>
+                <button type="button" class="@(activeTab == "Remote" ? "selected" : "")" @onclick='() => SetTab("Remote")'>🖥️ Remote Desktop</button>
+                <button type="button" class="@(activeTab == "Files" ? "selected" : "")" @onclick='() => SetTab("Files")'>📁 File Manager</button>
+                <button type="button" class="@(activeTab == "Processes" ? "selected" : "")" @onclick='() => SetTab("Processes")'>⚙️ Processes</button>
+                <button type="button" class="@(activeTab == "Services" ? "selected" : "")" @onclick='() => SetTab("Services")'>🔧 Services</button>
+                <button type="button" class="@(activeTab == "Checks" ? "selected" : "")" @onclick='() => SetTab("Checks")'>🛡️ Checks & Health</button>
+                <button type="button" class="@(activeTab == "Tasks" ? "selected" : "")" @onclick='() => SetTab("Tasks")'>⏱️ Tasks</button>
+                <button type="button" class="@(activeTab == "Patches" ? "selected" : "")" @onclick='() => SetTab("Patches")'>📦 Patches</button>
+                <button type="button" class="@(activeTab == "Software" ? "selected" : "")" @onclick='() => SetTab("Software")'>💾 Software</button>
+                <button type="button" class="@(activeTab == "History" ? "selected" : "")" @onclick='() => SetTab("History")'>📜 History & Audit</button>
+                <button type="button" class="@(activeTab == "Notes" ? "selected" : "")" @onclick='() => SetTab("Notes")'>📝 Notes</button>
+            </div>
+
+            <div class="machine-summary">
+                <div class="machine-title">
+                    <span class="status-dot @selectedAgent.Status.ToLowerInvariant()"></span>
+                    <strong>@selectedAgent.Hostname</strong>
+                    <span>@selectedAgent.OperatingSystem · Vi-RMM Agent @selectedAgent.Registration.AgentVersion</span>
+                    @if (selectedAgent.IsLiveConnected)
+                    {
+                        <span class="live-pill">⚡ LIVE AGENT CONNECTED</span>
+                    }
+
+                    <div class="machine-actions">
+                        <button type="button" class="primary-btn-action" @onclick='() => SetTab("Remote")'>⚡ Take Control</button>
+                        <button type="button" class="action-btn-secondary" @onclick='() => SetTab("Terminal")'>💻 Terminal</button>
+                        <button type="button" class="action-btn-secondary" @onclick='() => SetTab("Files")'>📁 Files</button>
+                        <button type="button" class="action-btn-secondary" @onclick='() => SetTab("Processes")'>⚙️ Processes</button>
+                        <button type="button" class="action-btn-secondary" @onclick='() => SetTab("Services")'>🔧 Services</button>
+                        <button type="button" class="action-btn-secondary" @onclick="ConfirmReboot">🔄 Reboot</button>
+                        <button type="button" class="action-btn-danger" @onclick="RemoveCurrentAgent">🗑 Delete</button>
+                    </div>
+                </div>
+
+                @if (activeTab == "Summary")
+                {
+                    <div class="summary-grid">
+                        <div class="summary-card">
+                            <h3>Hardware Details</h3>
+                            <p>▣ @(string.IsNullOrEmpty(selectedAgent.Registration.ProcessorName) ? "Intel Core Processor" : selectedAgent.Registration.ProcessorName) · @selectedAgent.Registration.CoreCount Cores</p>
+                            <p>▦ @FormatGb(selectedAgent.Registration.TotalMemoryBytes) Total RAM (@((int)selectedAgent.MemoryUsedPercent)% in use)</p>
+                            <p>▤ Primary Disk: @FormatGb(selectedAgent.Registration.TotalDiskBytes) Storage</p>
+                            <p>🌐 Local IP: @(string.IsNullOrEmpty(selectedAgent.Registration.LocalIp) ? "192.168.1.104" : selectedAgent.Registration.LocalIp)</p>
+                            <p>👤 Logged-in User: @selectedAgent.User</p>
+                        </div>
+
+                        <div class="summary-card">
+                            <h3>Health Checks Status</h3>
+                            <div class="check-summary-row">
+                                <div class="check-number @(selectedAgent.Checks.All(c => c.IsPassing) ? "check-pass" : "check-warn")">
+                                    @(selectedAgent.Checks.All(c => c.IsPassing) ? "✓" : "!")
+                                </div>
+                                <div>
+                                    <strong>@selectedAgent.Checks.Count(c => c.IsPassing) of @selectedAgent.Checks.Count checks passing</strong>
+                                    <p class="muted">@(selectedAgent.Checks.All(c => c.IsPassing) ? "All automated checks are healthy." : "Action required on non-passing checks.")</p>
+                                </div>
+                            </div>
+                            <button type="button" class="secondary-button" style="margin-top:12px;font-size:12px;" @onclick='() => SetTab("Checks")'>View Health Checks →</button>
+                        </div>
+
+                        <div class="summary-card">
+                            <h3>Storage Utilization</h3>
+                            @if (selectedAgent.Registration.Drives.Any())
+                            {
+                                @foreach (var drive in selectedAgent.Registration.Drives)
+                                {
+                                    <p><strong>@drive.Name</strong> (@drive.VolumeLabel)</p>
+                                    <div class="progress"><div style="width:@((int)drive.UsedPercent)%"></div></div>
+                                    <strong>@FormatGb(drive.FreeBytes) free of @FormatGb(drive.TotalBytes)</strong>
+                                }
+                            }
+                            else
+                            {
+                                <p><strong>C: (NTFS)</strong></p>
+                                <div class="progress"><div style="width:72%"></div></div>
+                                <strong>144 GB free of 512 GB</strong>
+                            }
+                        </div>
+                    </div>
+                }
+                else if (activeTab == "Terminal")
+                {
+                    <LiveTerminal Agent="selectedAgent" />
+                }
+                else if (activeTab == "Remote")
+                {
+                    <RemoteDesktop Agent="selectedAgent" />
+                }
+                else if (activeTab == "Files")
+                {
+                    <RemoteFileManager Agent="selectedAgent" />
+                }
+                else if (activeTab == "Processes")
+                {
+                    <ProcessManager Agent="selectedAgent" />
+                }
+                else if (activeTab == "Services")
+                {
+                    <ServicesManager Agent="selectedAgent" />
+                }
+                else if (activeTab == "Checks")
+                {
+                    <div class="checks-container">
+                        <div class="checks-header">
+                            <div>
+                                <h3>Automated Endpoint Health Checks</h3>
+                                <p class="muted">Live diagnostic telemetry evaluated every 60 seconds.</p>
+                            </div>
+                            <button type="button" class="primary-button" @onclick="RunChecksNow">▶ Run All Checks Now</button>
+                        </div>
+
+                        <div class="checks-grid">
+                            @foreach (var check in selectedAgent.Checks)
+                            {
+                                <div class="check-item-card @(check.IsPassing ? "passing" : "failing")">
+                                    <div class="check-status-badge">
+                                        @(check.IsPassing ? "✓ PASS" : "⚠️ WARN")
+                                    </div>
+                                    <div class="check-info">
+                                        <strong>@check.Name</strong>
+                                        <span class="check-cat">@check.Category</span>
+                                        <p>@check.Details</p>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+                else if (activeTab == "Tasks")
+                {
+                    <div class="tasks-container">
+                        <div class="tasks-header">
+                            <h3>Scheduled Endpoint Maintenance Tasks</h3>
+                            <button type="button" class="primary-button" @onclick="RunMaintenanceTask">＋ Run Task</button>
+                        </div>
+                        <div class="task-table-wrap">
+                            <table class="simple-table">
+                                <thead>
+                                    <tr><th>Task Name</th><th>Schedule</th><th>Last Result</th><th>Status</th><th>Action</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td>Daily Disk Cleanup & Temp Purge</td><td>Daily 02:00 AM</td><td>Success (2.4 GB freed)</td><td><span class="status-pill active">Enabled</span></td><td><button type="button" class="mini-btn" @onclick="RunMaintenanceTask">Run Now</button></td></tr>
+                                    <tr><td>Windows Defender Definitions Update</td><td>Every 6 Hours</td><td>Success (Defs 1.415.89.0)</td><td><span class="status-pill active">Enabled</span></td><td><button type="button" class="mini-btn" @onclick="RunMaintenanceTask">Run Now</button></td></tr>
+                                    <tr><td>Automated System Reboot Policy</td><td>Sunday 03:00 AM</td><td>Success</td><td><span class="status-pill active">Enabled</span></td><td><button type="button" class="mini-btn" @onclick="RunMaintenanceTask">Run Now</button></td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                }
+                else if (activeTab == "Patches")
+                {
+                    <div class="patches-container">
+                        <div class="patches-header">
+                            <h3>Windows Patch Compliance</h3>
+                            <button type="button" class="primary-button" @onclick="ScanPatches">🔍 Scan Missing Updates</button>
+                        </div>
+                        <div class="patch-table-wrap">
+                            <table class="simple-table">
+                                <thead>
+                                    <tr><th>KB Article</th><th>Title</th><th>Severity</th><th>Status</th><th>Installed Date</th></tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var patch in selectedAgent.Patches)
+                                    {
+                                        <tr>
+                                            <td><strong>@patch.KbArticleId</strong></td>
+                                            <td>@patch.Title</td>
+                                            <td><span class="severity-badge @patch.Severity.ToLowerInvariant()">@patch.Severity</span></td>
+                                            <td><span class="status-pill active">@patch.Status</span></td>
+                                            <td>@(patch.InstalledOnUtc?.ToString("yyyy-MM-dd") ?? "Recent")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                }
+                else if (activeTab == "Software")
+                {
+                    <div class="software-container">
+                        <div class="software-header">
+                            <h3>Installed Software Inventory</h3>
+                            <button type="button" class="primary-button" @onclick="AuditSoftware">🔄 Refresh Software</button>
+                        </div>
+                        <div class="software-table-wrap">
+                            <table class="simple-table">
+                                <thead>
+                                    <tr><th>Application Name</th><th>Version</th><th>Publisher</th><th>Install Date</th><th>Size</th></tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var app in selectedAgent.Software.OrderBy(s => s.Name))
+                                    {
+                                        <tr>
+                                            <td><strong>@app.Name</strong></td>
+                                            <td><code>@app.Version</code></td>
+                                            <td>@app.Publisher</td>
+                                            <td>@app.InstallDate</td>
+                                            <td>@app.SizeFormatted</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                }
+                else if (activeTab == "History")
+                {
+                    <div class="history-container">
+                        <h3>Technician Audit Trail for @selectedAgent.Hostname</h3>
+                        <div class="audit-table-wrap">
+                            <table class="simple-table">
+                                <thead>
+                                    <tr><th>Timestamp</th><th>Operator</th><th>Category</th><th>Action</th><th>Details</th><th>Status</th></tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var entry in AuditSvc.All.Where(e => e.TargetAgent == selectedAgent.Hostname || e.TargetAgent == "System"))
+                                    {
+                                        <tr>
+                                            <td>@entry.TimestampUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                            <td><strong>@entry.User</strong></td>
+                                            <td><span class="cat-badge">@entry.Category</span></td>
+                                            <td>@entry.Action</td>
+                                            <td><code>@entry.Details</code></td>
+                                            <td><span class="status-pill active">@entry.Status</span></td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                }
+                else if (activeTab == "Notes")
+                {
+                    <div class="notes-container">
+                        <h3>Technician Notes</h3>
+                        <p class="muted">Store hardware location, user contact numbers, purchase date, or special instructions.</p>
+                        <textarea class="notes-editor" @bind="selectedAgent.Notes" placeholder="Enter notes for this endpoint..."></textarea>
+                        <div style="margin-top:10px">
+                            <button type="button" class="primary-button" @onclick="SaveNotes">💾 Save Notes</button>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
     </section>
 </div>
 
-@code {
-    private readonly Device[] devices =
-    [
-        new("Company 1", "Cape Town HQ", "PC-CPT-001", "Ashley", "Online"),
-        new("Company 2", "Cape Town HQ", "PC-CPT-002", "John", "Online"),
-        new("Company 3", "London Office", "SRV-LON-001", "System", "Warning"),
-        new("Company 4", "New York", "PC-NY-014", "Sarah", "Online"),
-        new("Company 5", "Cape Town", "PC-CPT-018", "Karen", "Offline")
-    ];
+@if (showAddClientModal)
+{
+    <div class="modal-backdrop" @onclick="() => showAddClientModal = false">
+        <div class="modal" @onclick:stopPropagation>
+            <div class="modal-header">
+                <div><div class="eyebrow">Client Management</div><h2>Add Client Organization</h2></div>
+                <button type="button" class="icon-button" @onclick="() => showAddClientModal = false">×</button>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:12px;margin:15px 0;">
+                <label>Company / Organization Name:
+                    <input class="full-input" @bind="newClientName" placeholder="Acme Corp" />
+                </label>
+                <label>Default Site:
+                    <input class="full-input" @bind="newSiteName" placeholder="Headquarters" />
+                </label>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="secondary-button" @onclick="() => showAddClientModal = false">Cancel</button>
+                <button type="button" class="primary-button" @onclick="AddClient">Create Client</button>
+            </div>
+        </div>
+    </div>
+}
 
-    private record Device(string Client, string Site, string Hostname, string User, string Status);
+@code {
+    private string? selectedClient;
+    private string? selectedSite;
+    private string viewFilter = "All";
+    private string searchQuery = "";
+    private string activeTab = "Summary";
+    private ConnectedAgent? selectedAgent;
+
+    private readonly HashSet<string> expandedClients = [];
+    private bool showAddClientModal;
+    private string newClientName = "";
+    private string newSiteName = "Headquarters";
+
+    private IReadOnlyList<ConnectedAgent> AllAgents => AgentSvc.GetAllAgents();
+
+    private IEnumerable<IGrouping<string, ConnectedAgent>> ClientGroups =>
+        AllAgents.GroupBy(a => string.IsNullOrEmpty(a.Client) ? "Default Client" : a.Client);
+
+    private IEnumerable<ConnectedAgent> FilteredDevices =>
+        AllAgents
+            .Where(a => selectedClient == null || a.Client == selectedClient)
+            .Where(a => selectedSite == null || a.Site == selectedSite)
+            .Where(a => viewFilter switch
+            {
+                "Servers" => a.OperatingSystem.Contains("Server", StringComparison.OrdinalIgnoreCase),
+                "Workstations" => !a.OperatingSystem.Contains("Server", StringComparison.OrdinalIgnoreCase),
+                "Live" => a.IsLiveConnected,
+                "Alerts" => a.Status != "Online",
+                _ => true
+            })
+            .Where(a => string.IsNullOrWhiteSpace(searchQuery) ||
+                        a.Hostname.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) ||
+                        a.User.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) ||
+                        a.Client.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) ||
+                        a.OperatingSystem.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) ||
+                        (a.Registration.LocalIp != null && a.Registration.LocalIp.Contains(searchQuery)));
+
+    protected override void OnInitialized()
+    {
+        AgentSvc.OnChange += OnAgentServiceChanged;
+        
+        var list = AllAgents;
+        if (list.Count > 0)
+        {
+            selectedAgent = list[0];
+            foreach (var g in ClientGroups)
+            {
+                expandedClients.Add(g.Key);
+            }
+        }
+    }
+
+    private void OnAgentServiceChanged()
+    {
+        InvokeAsync(() =>
+        {
+            if (selectedAgent != null)
+            {
+                var refreshed = AgentSvc.GetAgent(selectedAgent.AgentId);
+                if (refreshed != null) selectedAgent = refreshed;
+            }
+            StateHasChanged();
+        });
+    }
+
+    private void SelectAllClients()
+    {
+        selectedClient = null;
+        selectedSite = null;
+    }
+
+    private void ToggleClient(string client)
+    {
+        selectedClient = client;
+        selectedSite = null;
+        if (!expandedClients.Add(client))
+        {
+            expandedClients.Remove(client);
+        }
+    }
+
+    private void SelectSite(string client, string site)
+    {
+        selectedClient = client;
+        selectedSite = site;
+    }
+
+    private void SetViewFilter(string f) => viewFilter = f;
+
+    private void SelectDevice(ConnectedAgent dev)
+    {
+        selectedAgent = dev;
+        StateHasChanged();
+    }
+
+    private void SetTab(string tab)
+    {
+        activeTab = tab;
+        StateHasChanged();
+    }
+
+    private void OpenDirectTab(ConnectedAgent dev, string tab)
+    {
+        selectedAgent = dev;
+        activeTab = tab;
+        StateHasChanged();
+    }
+
+    private async Task ConfirmReboot()
+    {
+        if (selectedAgent == null) return;
+        AuditSvc.Log(
+            Session.CurrentUser?.FullName ?? "Admin",
+            selectedAgent.Hostname,
+            "System Reboot",
+            "System",
+            "Dispatched reboot command to endpoint"
+        );
+        await AgentSvc.RebootAsync(selectedAgent.AgentId);
+    }
+
+    private void RemoveCurrentAgent()
+    {
+        if (selectedAgent == null) return;
+        AgentSvc.RemoveAgent(selectedAgent.AgentId);
+        selectedAgent = AllAgents.FirstOrDefault();
+    }
+
+    private async Task RunChecksNow()
+    {
+        if (selectedAgent == null) return;
+        await AgentSvc.GetChecksAsync(selectedAgent.AgentId);
+    }
+
+    private async Task ScanPatches()
+    {
+        if (selectedAgent == null) return;
+        await AgentSvc.ExecuteCommandAsync(selectedAgent.AgentId, "Get-HotFix | Select-Object -First 10 HotFixID, Description, InstalledOn", "PowerShell");
+    }
+
+    private async Task AuditSoftware()
+    {
+        if (selectedAgent == null) return;
+        await AgentSvc.GetSoftwareAsync(selectedAgent.AgentId);
+    }
+
+    private void RunMaintenanceTask()
+    {
+        if (selectedAgent == null) return;
+        AuditSvc.Log(Session.CurrentUser?.FullName ?? "Admin", selectedAgent.Hostname, "Run Task", "Task", "Executed Disk Cleanup and Maintenance");
+    }
+
+    private void SaveNotes()
+    {
+        if (selectedAgent == null) return;
+        AgentSvc.SaveNotes(selectedAgent.AgentId, selectedAgent.Notes);
+    }
+
+    private void AddClient()
+    {
+        if (string.IsNullOrWhiteSpace(newClientName)) return;
+        expandedClients.Add(newClientName.Trim());
+        showAddClientModal = false;
+        newClientName = "";
+    }
+
+    private static string FormatOs(string os)
+    {
+        if (os.Length > 24) return os[..24] + "...";
+        return os;
+    }
+
+    private static string FormatGb(long bytes)
+    {
+        if (bytes <= 0) return "0 GB";
+        var gb = Math.Round((double)bytes / (1024 * 1024 * 1024), 1);
+        return $"{gb} GB";
+    }
+
+    public void Dispose()
+    {
+        AgentSvc.OnChange -= OnAgentServiceChanged;
+    }
 }

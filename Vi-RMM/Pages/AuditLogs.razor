@@ -1,0 +1,39 @@
+@page "/tools/audit"
+@inject AuditService AuditSvc
+
+<PageTitle>Audit Logs - Vi-RMM</PageTitle>
+
+<div class="page-container">
+    <div class="page-header">
+        <div>
+            <div class="eyebrow">Compliance & Security</div>
+            <h1>System & Technician Audit Log</h1>
+            <p>Comprehensive activity record of all commands executed, remote control sessions, and administrative modifications.</p>
+        </div>
+    </div>
+
+    <div class="user-table">
+        <div class="user-head" style="grid-template-columns: 1.5fr 1fr 1.2fr 1.2fr 2.5fr 1fr;">
+            <span>Timestamp</span>
+            <span>Operator</span>
+            <span>Target Endpoint</span>
+            <span>Category</span>
+            <span>Details</span>
+            <span style="text-align:right">Status</span>
+        </div>
+
+        @foreach (var log in AuditSvc.All)
+        {
+            <div class="user-row" style="grid-template-columns: 1.5fr 1fr 1.2fr 1.2fr 2.5fr 1fr;">
+                <span>@log.TimestampUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</span>
+                <span><strong>@log.User</strong></span>
+                <span>@(string.IsNullOrEmpty(log.TargetAgent) ? "System" : log.TargetAgent)</span>
+                <span><span class="role-pill">@log.Category</span></span>
+                <span><code>@log.Details</code></span>
+                <span style="text-align:right">
+                    <span class="status-pill active">@log.Status</span>
+                </span>
+            </div>
+        }
+    </div>
+</div>

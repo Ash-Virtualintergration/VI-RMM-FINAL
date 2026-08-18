@@ -1,0 +1,36 @@
+@page "/settings/notifications"
+
+<PageTitle>Notifications - Vi-RMM</PageTitle>
+
+<div class="page-container">
+    <div class="page-header">
+        <div>
+            <div class="eyebrow">Settings</div>
+            <h1>Alert & Notification Channels</h1>
+            <p>Configure automated email and webhook notifications for endpoint alerts.</p>
+        </div>
+        <button class="primary-button">Save Notification Settings</button>
+    </div>
+
+    <div class="summary-grid">
+        <div class="summary-card">
+            <h3>📧 Email (SMTP) Alerting</h3>
+            <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px;">
+                <label>SMTP Host: <input class="full-input" value="smtp.office365.com" /></label>
+                <label>Port: <input class="full-input" value="587" /></label>
+                <label>Alert Recipient Email: <input class="full-input" value="noc-alerts@company.com" /></label>
+                <label class="checkbox-label"><input type="checkbox" checked /> Send email when server goes offline</label>
+                <label class="checkbox-label"><input type="checkbox" checked /> Send email on critical disk space alert</label>
+            </div>
+        </div>
+
+        <div class="summary-card">
+            <h3>💬 Webhook Integrations (Slack / Teams / Discord)</h3>
+            <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px;">
+                <label>Webhook URL: <input class="full-input" placeholder="https://discord.com/api/webhooks/..." /></label>
+                <label class="checkbox-label"><input type="checkbox" checked /> Post critical alerts to Webhook</label>
+                <label class="checkbox-label"><input type="checkbox" checked /> Post daily summary at 08:00 AM</label>
+            </div>
+        </div>
+    </div>
+</div>

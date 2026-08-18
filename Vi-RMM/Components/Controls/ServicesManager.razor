@@ -1,0 +1,140 @@
+@inject AgentService AgentSvc
+@inject AuditService AuditSvc
+@inject SessionState Session
+@implements IDisposable
+
+<div class="services-manager-container">
+    <div class="sm-toolbar">
+        <div class="sm-search">
+            <span class="search-icon">🔍</span>
+            <input @bind="filterText" @bind:event="oninput" placeholder="Filter Windows services..." />
+        </div>
+        <div class="sm-filters">
+            <button class="@(statusFilter == "All" ? "active" : "")" @onclick='() => SetFilter("All")'>All (@Agent.Services.Count)</button>
+            <button class="@(statusFilter == "Running" ? "active" : "")" @onclick='() => SetFilter("Running")'>Running (@Agent.Services.Count(s => s.Status == "Running"))</button>
+            <button class="@(statusFilter == "Stopped" ? "active" : "")" @onclick='() => SetFilter("Stopped")'>Stopped (@Agent.Services.Count(s => s.Status == "Stopped"))</button>
+        </div>
+        <div class="sm-actions">
+            <button class="action-btn" @onclick="RefreshServices" disabled="@isLoading">
+                @(isLoading ? "Refreshing..." : "🔄 Refresh")
+            </button>
+        </div>
+    </div>
+
+    <div class="sm-table-wrap">
+        <table class="sm-table">
+            <thead>
+                <tr>
+                    <th>Service Name</th>
+                    <th>Display Name</th>
+                    <th style="width:110px">Status</th>
+                    <th style="width:120px">Startup Type</th>
+                    <th style="width:180px;text-align:right">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (FilteredServices.Any())
+                {
+                    @foreach (var svc in FilteredServices.OrderBy(s => s.DisplayName))
+                    {
+                        <tr class="sm-row">
+                            <td class="svc-name-cell"><code>@svc.Name</code></td>
+                            <td class="svc-display-cell"><strong>@svc.DisplayName</strong></td>
+                            <td>
+                                <span class="status-pill @(svc.Status.ToLowerInvariant())">
+                                    <b class="status-dot @(svc.Status.ToLowerInvariant())"></b>
+                                    @svc.Status
+                                </span>
+                            </td>
+                            <td><span class="startup-pill">@svc.StartType</span></td>
+                            <td style="text-align:right">
+                                @if (svc.Status == "Running")
+                                {
+                                    <button class="mini-btn" @onclick='() => ControlService(svc.Name, "restart")' title="Restart Service">Restart</button>
+                                    <button class="mini-btn danger" @onclick='() => ControlService(svc.Name, "stop")' title="Stop Service">Stop</button>
+                                }
+                                else
+                                {
+                                    <button class="mini-btn success" @onclick='() => ControlService(svc.Name, "start")' title="Start Service">Start</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr>
+                        <td colspan="5" class="empty-cell">No matching services found.</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public ConnectedAgent Agent { get; set; } = default!;
+
+    private string filterText = "";
+    private string statusFilter = "All";
+    private bool isLoading;
+
+    private IEnumerable<ServiceItemDto> FilteredServices =>
+        Agent.Services
+            .Where(s => statusFilter == "All" || s.Status.Equals(statusFilter, StringComparison.OrdinalIgnoreCase))
+            .Where(s => string.IsNullOrWhiteSpace(filterText) ||
+                        s.Name.Contains(filterText, StringComparison.OrdinalIgnoreCase) ||
+                        s.DisplayName.Contains(filterText, StringComparison.OrdinalIgnoreCase));
+
+    protected override void OnInitialized()
+    {
+        AgentSvc.OnServicesUpdated += HandleServicesUpdated;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Agent.Services.Count == 0)
+        {
+            await RefreshServices();
+        }
+    }
+
+    private void SetFilter(string f) => statusFilter = f;
+
+    private async Task RefreshServices()
+    {
+        isLoading = true;
+        await AgentSvc.GetServicesAsync(Agent.AgentId);
+    }
+
+    private async Task ControlService(string name, string action)
+    {
+        AuditSvc.Log(
+            Session.CurrentUser?.FullName ?? "Admin",
+            Agent.Hostname,
+            $"Service {action.ToUpperInvariant()}",
+            "Service",
+            $"{action} service {name}"
+        );
+
+        await AgentSvc.ControlServiceAsync(Agent.AgentId, name, action);
+        await Task.Delay(800);
+        await RefreshServices();
+    }
+
+    private void HandleServicesUpdated(string agentId, List<ServiceItemDto> list)
+    {
+        if (agentId != Agent.AgentId) return;
+
+        InvokeAsync(() =>
+        {
+            isLoading = false;
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose()
+    {
+        AgentSvc.OnServicesUpdated -= HandleServicesUpdated;
+    }
+}

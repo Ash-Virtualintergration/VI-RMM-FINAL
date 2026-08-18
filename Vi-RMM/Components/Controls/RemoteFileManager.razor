@@ -1,0 +1,359 @@
+@inject AgentService AgentSvc
+@inject AuditService AuditSvc
+@inject SessionState Session
+@inject IJSRuntime JS
+@implements IDisposable
+
+<div class="file-manager-container">
+    <div class="fm-toolbar">
+        <div class="fm-drives">
+            @if (listing?.Drives != null && listing.Drives.Count > 0)
+            {
+                @foreach (var drive in listing.Drives)
+                {
+                    <button class="drive-btn @(currentPath.StartsWith(drive.Name, StringComparison.OrdinalIgnoreCase) ? "active" : "")"
+                            @onclick="() => NavigateTo(drive.Name)">
+                        💾 @drive.Name (@FormatBytes(drive.FreeBytes) free)
+                    </button>
+                }
+            }
+            else
+            {
+                <button class="drive-btn active" @onclick='() => NavigateTo("C:\\")'>💾 C:\</button>
+            }
+        </div>
+
+        <div class="fm-actions">
+            <button class="action-btn" @onclick="RefreshCurrent">🔄 Refresh</button>
+            <button class="action-btn" @onclick="() => showNewFolderModal = true">📁 New Folder</button>
+            <label class="action-btn upload-btn">
+                ⬆ Upload File
+                <InputFile OnChange="HandleFileUpload" style="display:none" />
+            </label>
+        </div>
+    </div>
+
+    <div class="fm-path-bar">
+        <button class="path-nav-btn" @onclick="GoUp" disabled="@(string.IsNullOrEmpty(listing?.ParentPath) || listing.CurrentPath == listing.ParentPath)">
+            ⬆ Up
+        </button>
+        <div class="path-breadcrumbs">
+            <span class="path-icon">📂</span>
+            <input class="path-input" @bind="currentPath" @bind:event="onchange" @onkeydown="HandlePathKeyDown" />
+            <button class="go-btn" @onclick="() => NavigateTo(currentPath)">Go</button>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="fm-loading">
+            <div class="spinner"></div> Loading remote directory...
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(listing?.Error))
+    {
+        <div class="fm-error">
+            ⚠️ Error accessing path: @listing.Error
+        </div>
+    }
+    else
+    {
+        <div class="fm-table-wrap">
+            <table class="fm-table">
+                <thead>
+                    <tr>
+                        <th style="width:40px"></th>
+                        <th>Name</th>
+                        <th style="width:120px">Size</th>
+                        <th style="width:180px">Modified</th>
+                        <th style="width:160px;text-align:right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (listing?.Items == null || listing.Items.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="5" class="empty-cell">Folder is empty.</td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var item in listing.Items.OrderByDescending(i => i.IsDirectory).ThenBy(i => i.Name))
+                        {
+                            <tr class="fm-row" @ondblclick="() => HandleItemDoubleClick(item)">
+                                <td class="fm-icon-cell">
+                                    @(item.IsDirectory ? "📁" : GetFileIcon(item.Extension))
+                                </td>
+                                <td class="fm-name-cell">
+                                    @if (item.IsDirectory)
+                                    {
+                                        <a href="javascript:void(0)" @onclick="() => NavigateTo(item.Path)" class="folder-link">@item.Name</a>
+                                    }
+                                    else
+                                    {
+                                        <span class="file-name">@item.Name</span>
+                                    }
+                                </td>
+                                <td class="fm-size-cell">
+                                    @(item.IsDirectory ? "--" : FormatBytes(item.SizeBytes))
+                                </td>
+                                <td class="fm-date-cell">
+                                    @item.LastModifiedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+                                </td>
+                                <td class="fm-actions-cell">
+                                    @if (!item.IsDirectory)
+                                    {
+                                        <button class="mini-btn" @onclick="() => ViewFile(item.Path)" title="Preview text">👁</button>
+                                        <button class="mini-btn" @onclick="() => DownloadFile(item.Path)" title="Download">⬇</button>
+                                    }
+                                    <button class="mini-btn danger" @onclick="() => DeleteItem(item.Path)" title="Delete">🗑</button>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@if (showPreviewModal)
+{
+    <div class="modal-backdrop" @onclick="() => showPreviewModal = false">
+        <div class="modal preview-modal" @onclick:stopPropagation>
+            <div class="modal-header">
+                <div>
+                    <div class="eyebrow">Remote File Preview</div>
+                    <h3>@previewFilePath</h3>
+                </div>
+                <button class="icon-button" @onclick="() => showPreviewModal = false">×</button>
+            </div>
+            <div class="preview-content">
+                @if (isLoadingPreview)
+                {
+                    <p>Loading file content...</p>
+                }
+                else
+                {
+                    <pre>@previewContent</pre>
+                }
+            </div>
+            <div class="modal-actions">
+                <button class="primary-button" @onclick="() => showPreviewModal = false">Close</button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showNewFolderModal)
+{
+    <div class="modal-backdrop" @onclick="() => showNewFolderModal = false">
+        <div class="modal" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3>Create New Folder</h3>
+                <button class="icon-button" @onclick="() => showNewFolderModal = false">×</button>
+            </div>
+            <div style="margin: 15px 0;">
+                <label>Folder Name:
+                    <input class="full-input" @bind="newFolderName" placeholder="NewFolder" />
+                </label>
+            </div>
+            <div class="modal-actions">
+                <button class="secondary-button" @onclick="() => showNewFolderModal = false">Cancel</button>
+                <button class="primary-button" @onclick="CreateFolder">Create</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public ConnectedAgent Agent { get; set; } = default!;
+
+    private string currentPath = "C:\\";
+    private DirectoryListingDto? listing;
+    private bool isLoading = true;
+
+    private bool showPreviewModal;
+    private string previewFilePath = "";
+    private string previewContent = "";
+    private bool isLoadingPreview;
+
+    private bool showNewFolderModal;
+    private string newFolderName = "";
+
+    protected override void OnInitialized()
+    {
+        AgentSvc.OnDirectoryListing += HandleDirectoryListing;
+        AgentSvc.OnFileContent += HandleFileContent;
+        AgentSvc.OnFileOpResult += HandleFileOpResult;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (listing == null)
+        {
+            await NavigateTo("C:\\");
+        }
+    }
+
+    private async Task NavigateTo(string path)
+    {
+        currentPath = path;
+        isLoading = true;
+        await AgentSvc.BrowseDirectoryAsync(Agent.AgentId, path);
+    }
+
+    private async Task RefreshCurrent() => await NavigateTo(currentPath);
+
+    private async Task GoUp()
+    {
+        if (!string.IsNullOrEmpty(listing?.ParentPath))
+        {
+            await NavigateTo(listing.ParentPath);
+        }
+    }
+
+    private async Task HandlePathKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await NavigateTo(currentPath);
+        }
+    }
+
+    private async Task HandleItemDoubleClick(FileItemDto item)
+    {
+        if (item.IsDirectory)
+        {
+            await NavigateTo(item.Path);
+        }
+        else
+        {
+            await ViewFile(item.Path);
+        }
+    }
+
+    private void HandleDirectoryListing(DirectoryListingDto list)
+    {
+        if (list.RequestId != Agent.AgentId) return;
+
+        InvokeAsync(() =>
+        {
+            listing = list;
+            currentPath = list.CurrentPath;
+            isLoading = false;
+            StateHasChanged();
+        });
+    }
+
+    private async Task ViewFile(string path)
+    {
+        previewFilePath = path;
+        previewContent = "";
+        isLoadingPreview = true;
+        showPreviewModal = true;
+        await AgentSvc.GetFileContentAsync(Agent.AgentId, path);
+    }
+
+    private void HandleFileContent(FileContentResponseDto res)
+    {
+        if (res.RequestId != Agent.AgentId) return;
+
+        InvokeAsync(() =>
+        {
+            isLoadingPreview = false;
+            previewContent = res.TextContent ?? (res.Error ?? "Binary file or no text content available.");
+            StateHasChanged();
+        });
+    }
+
+    private async Task DownloadFile(string path)
+    {
+        AuditSvc.Log(
+            Session.CurrentUser?.FullName ?? "Admin",
+            Agent.Hostname,
+            "File Download",
+            "File",
+            $"Initiated download of {path}"
+        );
+        await ViewFile(path);
+    }
+
+    private async Task DeleteItem(string path)
+    {
+        AuditSvc.Log(
+            Session.CurrentUser?.FullName ?? "Admin",
+            Agent.Hostname,
+            "File Delete",
+            "File",
+            $"Deleted {path}"
+        );
+        await AgentSvc.DeleteFileAsync(Agent.AgentId, path);
+        await RefreshCurrent();
+    }
+
+    private async Task CreateFolder()
+    {
+        if (string.IsNullOrWhiteSpace(newFolderName)) return;
+        var full = Path.Combine(currentPath, newFolderName.Trim());
+        showNewFolderModal = false;
+        newFolderName = "";
+        await AgentSvc.CreateFolderAsync(Agent.AgentId, full);
+        await RefreshCurrent();
+    }
+
+    private async Task HandleFileUpload(InputFileChangeEventArgs e)
+    {
+        if (e.File == null) return;
+
+        using var stream = e.File.OpenReadStream(15 * 1024 * 1024);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms);
+
+        var targetPath = Path.Combine(currentPath, e.File.Name);
+        await AgentSvc.UploadFileAsync(Agent.AgentId, targetPath, ms.ToArray());
+
+        AuditSvc.Log(
+            Session.CurrentUser?.FullName ?? "Admin",
+            Agent.Hostname,
+            "File Upload",
+            "File",
+            $"Uploaded {e.File.Name} ({e.File.Size} bytes) to {currentPath}"
+        );
+
+        await RefreshCurrent();
+    }
+
+    private void HandleFileOpResult(FileOperationResultDto res)
+    {
+        if (res.RequestId != Agent.AgentId) return;
+        InvokeAsync(RefreshCurrent);
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes <= 0) return "0 B";
+        string[] suf = ["B", "KB", "MB", "GB", "TB"];
+        int place = Convert.ToInt32(Math.Floor(Math.Log(bytes, 1024)));
+        double num = Math.Round(bytes / Math.Pow(1024, place), 1);
+        return $"{num} {suf[place]}";
+    }
+
+    private static string GetFileIcon(string ext) => ext.ToLowerInvariant() switch
+    {
+        ".txt" or ".log" or ".json" or ".xml" or ".csv" => "📄",
+        ".exe" or ".msi" or ".bat" or ".cmd" or ".ps1" => "⚙️",
+        ".zip" or ".rar" or ".7z" or ".tar" or ".gz" => "📦",
+        ".png" or ".jpg" or ".jpeg" or ".gif" or ".ico" => "🖼️",
+        ".pdf" => "📕",
+        ".dll" or ".sys" => "🔩",
+        _ => "📄"
+    };
+
+    public void Dispose()
+    {
+        AgentSvc.OnDirectoryListing -= HandleDirectoryListing;
+        AgentSvc.OnFileContent -= HandleFileContent;
+        AgentSvc.OnFileOpResult -= HandleFileOpResult;
+    }
+}

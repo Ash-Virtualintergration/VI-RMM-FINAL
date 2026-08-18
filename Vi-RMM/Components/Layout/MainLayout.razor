@@ -3,43 +3,87 @@
 @inject SessionState Session
 @inject NavigationManager Navigation
 
-<div class="app-shell @(darkMode ? "theme-dark" : "theme-light")">
+<div class="app-shell @(darkMode ? "theme-dark" : "theme-light")" @onclick="CloseAllMenus">
     <header class="topbar">
-        <div class="brand">
+        <a href="/" class="brand" style="text-decoration:none;color:inherit;">
             <div class="brand-mark">V</div>
             <div>
                 <div class="brand-name">Vi-RMM</div>
                 <div class="brand-subtitle">Remote Monitoring & Management</div>
             </div>
-        </div>
+        </a>
 
         <nav class="top-menu">
-            <a href="/">File</a>
-            <a href="/">View</a>
-            <div class="menu">
-                <button class="menu-button">Agents ▾</button>
+            <div class="menu @(activeMenu == "file" ? "open" : "")" @onclick:stopPropagation="true">
+                <button type="button" class="menu-button" @onclick='() => ToggleMenu("file")'>File ▾</button>
                 <div class="menu-panel">
-                    <a href="/agents">All Agents</a>
-                    <a href="/agents/install">Install Agent</a>
-                    <a href="/">Agent Policies</a>
-                    <a href="/">Agent Groups</a>
+                    <a href="/agents/install" @onclick="CloseAllMenus">➕ Install New Agent</a>
+                    <a href="/reporting/inventory" @onclick="CloseAllMenus">📋 Export Device Inventory</a>
+                    <a href="/tools/audit" @onclick="CloseAllMenus">📜 Activity Audit Log</a>
+                    <div class="profile-divider"></div>
+                    <a href="/login" @onclick="SignOut">↪ Sign Out</a>
                 </div>
             </div>
-            <div class="menu">
-                <button class="menu-button">Settings ▾</button>
+
+            <div class="menu @(activeMenu == "view" ? "open" : "")" @onclick:stopPropagation="true">
+                <button type="button" class="menu-button" @onclick='() => ToggleMenu("view")'>View ▾</button>
                 <div class="menu-panel">
-                    <a href="/users">Users & Roles</a>
-                    <a href="/">Security</a>
-                    <a href="/">Notifications</a>
+                    <a href="/" @onclick="CloseAllMenus">📊 Live Dashboard</a>
+                    <a href="/agents" @onclick="CloseAllMenus">🖥️ All Connected Agents</a>
+                    <button type="button" class="menu-action-btn" @onclick="ToggleTheme">
+                        @((darkMode ? "☀ Light Mode" : "🌙 Dark Theme"))
+                    </button>
                 </div>
             </div>
-            <a href="/">Tools</a>
-            <a href="/">Reporting</a>
-            <a href="/">Help</a>
+
+            <div class="menu @(activeMenu == "agents" ? "open" : "")" @onclick:stopPropagation="true">
+                <button type="button" class="menu-button" @onclick='() => ToggleMenu("agents")'>Agents ▾</button>
+                <div class="menu-panel">
+                    <a href="/agents" @onclick="CloseAllMenus">All Agents</a>
+                    <a href="/agents/install" @onclick="CloseAllMenus">Install Agent</a>
+                    <a href="/agents/policies" @onclick="CloseAllMenus">Agent Policies</a>
+                    <a href="/agents/groups" @onclick="CloseAllMenus">Agent Groups</a>
+                </div>
+            </div>
+
+            <div class="menu @(activeMenu == "settings" ? "open" : "")" @onclick:stopPropagation="true">
+                <button type="button" class="menu-button" @onclick='() => ToggleMenu("settings")'>Settings ▾</button>
+                <div class="menu-panel">
+                    <a href="/users" @onclick="CloseAllMenus">Users & Roles</a>
+                    <a href="/settings/security" @onclick="CloseAllMenus">Security & 2FA</a>
+                    <a href="/settings/notifications" @onclick="CloseAllMenus">Alert Notifications</a>
+                </div>
+            </div>
+
+            <div class="menu @(activeMenu == "tools" ? "open" : "")" @onclick:stopPropagation="true">
+                <button type="button" class="menu-button" @onclick='() => ToggleMenu("tools")'>Tools ▾</button>
+                <div class="menu-panel">
+                    <a href="/tools/scripts" @onclick="CloseAllMenus">📜 Script Library & Runner</a>
+                    <a href="/tools/discovery" @onclick="CloseAllMenus">🔍 Network Discovery</a>
+                    <a href="/tools/audit" @onclick="CloseAllMenus">📋 Audit Logs</a>
+                </div>
+            </div>
+
+            <div class="menu @(activeMenu == "reporting" ? "open" : "")" @onclick:stopPropagation="true">
+                <button type="button" class="menu-button" @onclick='() => ToggleMenu("reporting")'>Reporting ▾</button>
+                <div class="menu-panel">
+                    <a href="/reporting/summary" @onclick="CloseAllMenus">📊 Executive Summary</a>
+                    <a href="/reporting/patches" @onclick="CloseAllMenus">🛡️ Patch Compliance</a>
+                    <a href="/reporting/inventory" @onclick="CloseAllMenus">📋 Inventory Report</a>
+                </div>
+            </div>
+
+            <div class="menu @(activeMenu == "help" ? "open" : "")" @onclick:stopPropagation="true">
+                <button type="button" class="menu-button" @onclick='() => ToggleMenu("help")'>Help ▾</button>
+                <div class="menu-panel">
+                    <a href="/help" @onclick="CloseAllMenus">📖 Documentation & Manual</a>
+                    <a href="/agents/install" @onclick="CloseAllMenus">🚀 Deployment Guide</a>
+                </div>
+            </div>
         </nav>
 
-        <div class="profile-wrap">
-            <button class="profile-button" @onclick="ToggleProfile">
+        <div class="profile-wrap" @onclick:stopPropagation="true">
+            <button type="button" class="profile-button" @onclick="ToggleProfile">
                 @if (!string.IsNullOrWhiteSpace(Session.CurrentUser?.ProfileImage))
                 {
                     <img src="@Session.CurrentUser.ProfileImage" alt="Profile" class="avatar" />
@@ -59,8 +103,9 @@
                         <strong>@(Session.CurrentUser?.FullName ?? "Administrator")</strong>
                         <span>@(Session.CurrentUser?.Role ?? "Administrator")</span>
                     </div>
-                    <a href="/users" @onclick="CloseProfile">👥 Manage Users</a>
-                    <button @onclick="ToggleTheme">@((darkMode ? "☀" : "🌙")) @(darkMode ? "Light Mode" : "Dark Theme")</button>
+                    <a href="/users" @onclick="CloseAllMenus">👥 Manage Users</a>
+                    <a href="/settings/security" @onclick="CloseAllMenus">🛡️ Security Settings</a>
+                    <button type="button" @onclick="ToggleTheme">@((darkMode ? "☀ Light Mode" : "🌙 Dark Theme"))</button>
 
                     <label class="profile-upload">
                         🖼 Change Profile Picture
@@ -68,7 +113,7 @@
                     </label>
 
                     <div class="profile-divider"></div>
-                    <button class="danger-button" @onclick="SignOut">↪ Sign Out</button>
+                    <button type="button" class="danger-button" @onclick="SignOut">↪ Sign Out</button>
                 </div>
             }
         </div>
@@ -81,21 +126,36 @@
 
 @code {
     private bool profileOpen;
-    private bool darkMode;
+    private string? activeMenu;
+    private bool darkMode = true;
 
     protected override void OnInitialized()
     {
         darkMode = true;
     }
 
-    private void ToggleProfile() => profileOpen = !profileOpen;
+    private void ToggleMenu(string menuName)
+    {
+        activeMenu = activeMenu == menuName ? null : menuName;
+        profileOpen = false;
+    }
 
-    private void CloseProfile() => profileOpen = false;
+    private void ToggleProfile()
+    {
+        profileOpen = !profileOpen;
+        activeMenu = null;
+    }
+
+    private void CloseAllMenus()
+    {
+        activeMenu = null;
+        profileOpen = false;
+    }
 
     private void ToggleTheme()
     {
         darkMode = !darkMode;
-        profileOpen = false;
+        CloseAllMenus();
     }
 
     private string GetInitials()
@@ -121,13 +181,13 @@
             $"data:{mime};base64,{Convert.ToBase64String(memory.ToArray())}";
 
         Users.Save(Session.CurrentUser);
-        profileOpen = false;
+        CloseAllMenus();
     }
 
     private void SignOut()
     {
         Session.SignOut();
-        profileOpen = false;
+        CloseAllMenus();
         Navigation.NavigateTo("/login");
     }
 }

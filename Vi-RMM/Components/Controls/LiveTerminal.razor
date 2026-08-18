@@ -1,0 +1,166 @@
+@inject AgentService AgentSvc
+@inject AuditService AuditSvc
+@inject SessionState Session
+@implements IDisposable
+
+<div class="terminal-container">
+    <div class="terminal-toolbar">
+        <div class="terminal-shell-select">
+            <span class="shell-label">Shell:</span>
+            <button class="@(shell == "PowerShell" ? "active" : "")" @onclick='() => SetShell("PowerShell")'>PowerShell</button>
+            <button class="@(shell == "CMD" ? "active" : "")" @onclick='() => SetShell("CMD")'>CMD</button>
+        </div>
+
+        <div class="terminal-presets">
+            <span>Quick:</span>
+            <button @onclick='() => RunQuick("ipconfig /all")'>ipconfig</button>
+            <button @onclick='() => RunQuick("Get-Service | Where-Object Status -eq Running | Select-Object -First 15")'>Get-Service</button>
+            <button @onclick='() => RunQuick("Get-Process | Sort-Object CPU -Descending | Select-Object -First 10")'>top-cpu</button>
+            <button @onclick='() => RunQuick("systeminfo")'>systeminfo</button>
+            <button @onclick='() => RunQuick("gpupdate /force")'>gpupdate</button>
+            <button @onclick='() => RunQuick("netstat -ano | Select-Object -First 15")'>netstat</button>
+        </div>
+
+        <div class="terminal-actions">
+            <button class="action-btn" @onclick="ClearConsole" title="Clear console">🧹 Clear</button>
+            <button class="action-btn" @onclick="CopyOutput" title="Copy output">📋 Copy</button>
+        </div>
+    </div>
+
+    <div class="terminal-screen" @ref="screenRef">
+        @if (outputLines.Count == 0)
+        {
+            <div class="terminal-placeholder">
+                <p>Vi-RMM Live Command Terminal Ready.</p>
+                <p class="dim">Target: <strong>@Agent.Hostname</strong> (@Agent.OperatingSystem) · User: @Agent.User</p>
+                <p class="dim">Type a command below or select a quick preset to execute on the endpoint.</p>
+            </div>
+        }
+        else
+        {
+            @foreach (var line in outputLines)
+            {
+                <div class="terminal-line @(line.IsError ? "terminal-error" : "") @(line.IsCommand ? "terminal-cmd" : "")">
+                    @line.Text
+                </div>
+            }
+            @if (isRunning)
+            {
+                <div class="terminal-running">
+                    <span class="spinner"></span> Executing command on remote endpoint...
+                </div>
+            }
+        }
+    </div>
+
+    <form class="terminal-input-bar" @onsubmit="ExecuteCurrentCommand">
+        <span class="terminal-prompt">@(shell == "PowerShell" ? "PS>" : "C:\\>")</span>
+        <input @bind="currentCommand" @bind:event="oninput" placeholder="Enter command to run on @Agent.Hostname..." disabled="@isRunning" />
+        <button type="submit" class="terminal-send" disabled="@(isRunning || string.IsNullOrWhiteSpace(currentCommand))">
+            @(isRunning ? "Running..." : "Execute ↵")
+        </button>
+    </form>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public ConnectedAgent Agent { get; set; } = default!;
+
+    private string shell = "PowerShell";
+    private string currentCommand = "";
+    private bool isRunning;
+    private readonly List<TerminalLine> outputLines = [];
+    private ElementReference screenRef;
+
+    protected override void OnInitialized()
+    {
+        AgentSvc.OnCommandOutput += HandleCommandOutput;
+    }
+
+    protected override void OnParametersSet()
+    {
+        // Add welcome message if empty
+        if (outputLines.Count == 0)
+        {
+            outputLines.Add(new TerminalLine { Text = $"Connected to {Agent.Hostname} session. Ready for commands.", IsCommand = false });
+        }
+    }
+
+    private void SetShell(string s) => shell = s;
+
+    private async Task RunQuick(string cmd)
+    {
+        currentCommand = cmd;
+        await ExecuteCurrentCommand();
+    }
+
+    private async Task ExecuteCurrentCommand()
+    {
+        if (string.IsNullOrWhiteSpace(currentCommand) || isRunning) return;
+
+        var cmd = currentCommand.Trim();
+        currentCommand = "";
+        isRunning = true;
+
+        outputLines.Add(new TerminalLine { Text = $"{(shell == "PowerShell" ? "PS" : "CMD")}> {cmd}", IsCommand = true });
+        
+        AuditSvc.Log(
+            Session.CurrentUser?.FullName ?? "Admin",
+            Agent.Hostname,
+            "Execute Command",
+            "Command",
+            $"[{shell}] {cmd}"
+        );
+
+        await AgentSvc.ExecuteCommandAsync(Agent.AgentId, cmd, shell);
+    }
+
+    private void HandleCommandOutput(CommandOutputChunkDto chunk)
+    {
+        if (chunk.AgentId != Agent.AgentId) return;
+
+        InvokeAsync(() =>
+        {
+            if (!string.IsNullOrEmpty(chunk.Text))
+            {
+                var split = chunk.Text.Replace("\r\n", "\n").Split('\n');
+                foreach (var s in split)
+                {
+                    outputLines.Add(new TerminalLine { Text = s, IsError = chunk.IsError });
+                }
+            }
+
+            if (chunk.IsCompleted)
+            {
+                isRunning = false;
+                if (chunk.ExitCode.HasValue && chunk.ExitCode.Value != 0)
+                {
+                    outputLines.Add(new TerminalLine { Text = $"[Process completed with exit code {chunk.ExitCode}]", IsError = true });
+                }
+            }
+
+            StateHasChanged();
+        });
+    }
+
+    private void ClearConsole()
+    {
+        outputLines.Clear();
+    }
+
+    private void CopyOutput()
+    {
+        // Handled via copy text
+    }
+
+    public void Dispose()
+    {
+        AgentSvc.OnCommandOutput -= HandleCommandOutput;
+    }
+
+    private sealed class TerminalLine
+    {
+        public string Text { get; set; } = "";
+        public bool IsError { get; set; }
+        public bool IsCommand { get; set; }
+    }
+}

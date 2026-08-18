@@ -1,0 +1,48 @@
+@page "/settings/security"
+
+<PageTitle>Security Settings - Vi-RMM</PageTitle>
+
+<div class="page-container">
+    <div class="page-header">
+        <div>
+            <div class="eyebrow">Settings</div>
+            <h1>Security & Access Control</h1>
+            <p>Configure two-factor authentication, session management, and agent enrollment tokens.</p>
+        </div>
+    </div>
+
+    <div class="summary-grid">
+        <div class="summary-card">
+            <h3>🔑 Agent Enrollment Security</h3>
+            <p>Global Agent Registration Token:</p>
+            <div class="code-copy-box" style="margin: 10px 0;">
+                <code>virmm_sec_89f029b3c4819d4e5f019a</code>
+            </div>
+            <label class="checkbox-label" style="margin-top:12px;">
+                <input type="checkbox" checked /> Require token on new agent registration
+            </label>
+        </div>
+
+        <div class="summary-card">
+            <h3>🛡️ Two-Factor Authentication (2FA)</h3>
+            <p>Require Time-Based One-Time Password (TOTP) for all technician and admin logins.</p>
+            <label class="checkbox-label" style="margin-top:12px;">
+                <input type="checkbox" checked /> Enforce 2FA for Administrators
+            </label>
+            <label class="checkbox-label" style="margin-top:8px;">
+                <input type="checkbox" /> Enforce 2FA for Technicians
+            </label>
+        </div>
+
+        <div class="summary-card">
+            <h3>⏱️ Session Management</h3>
+            <label style="display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:700;">
+                Inactivity Logout Timeout (Minutes):
+                <input class="full-input" type="number" value="30" />
+            </label>
+            <label class="checkbox-label" style="margin-top:12px;">
+                <input type="checkbox" checked /> Terminate concurrent logins for same user
+            </label>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,128 @@
+@inject AgentService AgentSvc
+@inject AuditService AuditSvc
+@inject SessionState Session
+@implements IDisposable
+
+<div class="process-manager-container">
+    <div class="pm-toolbar">
+        <div class="pm-search">
+            <span class="search-icon">🔍</span>
+            <input @bind="filterText" @bind:event="oninput" placeholder="Filter processes by name or PID..." />
+        </div>
+        <div class="pm-stats">
+            <span>Total: <strong>@Agent.Processes.Count</strong></span>
+            <span>Filtered: <strong>@FilteredProcesses.Count()</strong></span>
+        </div>
+        <div class="pm-actions">
+            <button class="action-btn" @onclick="RefreshProcesses" disabled="@isLoading">
+                @(isLoading ? "Refreshing..." : "🔄 Refresh")
+            </button>
+        </div>
+    </div>
+
+    <div class="pm-table-wrap">
+        <table class="pm-table">
+            <thead>
+                <tr>
+                    <th style="width:70px">PID</th>
+                    <th>Process Name</th>
+                    <th style="width:120px">Memory (MB)</th>
+                    <th style="width:100px">CPU %</th>
+                    <th style="width:120px">User</th>
+                    <th>Window Title</th>
+                    <th style="width:90px;text-align:right">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (FilteredProcesses.Any())
+                {
+                    @foreach (var proc in FilteredProcesses.OrderByDescending(p => p.WorkingSetBytes))
+                    {
+                        <tr class="pm-row">
+                            <td class="pid-cell">@proc.Id</td>
+                            <td class="name-cell"><strong>@proc.Name</strong></td>
+                            <td>@proc.WorkingSetMb MB</td>
+                            <td>@(proc.CpuPercent > 0 ? $"{proc.CpuPercent:F1}%" : "0.0%")</td>
+                            <td><span class="user-pill">@proc.UserName</span></td>
+                            <td class="title-cell" title="@proc.MainWindowTitle">@proc.MainWindowTitle</td>
+                            <td style="text-align:right">
+                                <button class="mini-btn danger" @onclick="() => KillProcess(proc.Id, proc.Name)" title="End Process">Kill</button>
+                            </td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr>
+                        <td colspan="7" class="empty-cell">No matching processes found.</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public ConnectedAgent Agent { get; set; } = default!;
+
+    private string filterText = "";
+    private bool isLoading;
+
+    private IEnumerable<ProcessDto> FilteredProcesses =>
+        string.IsNullOrWhiteSpace(filterText)
+            ? Agent.Processes
+            : Agent.Processes.Where(p =>
+                p.Name.Contains(filterText, StringComparison.OrdinalIgnoreCase) ||
+                p.Id.ToString().Contains(filterText) ||
+                p.MainWindowTitle.Contains(filterText, StringComparison.OrdinalIgnoreCase));
+
+    protected override void OnInitialized()
+    {
+        AgentSvc.OnProcessesUpdated += HandleProcessesUpdated;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Agent.Processes.Count == 0)
+        {
+            await RefreshProcesses();
+        }
+    }
+
+    private async Task RefreshProcesses()
+    {
+        isLoading = true;
+        await AgentSvc.GetProcessesAsync(Agent.AgentId);
+    }
+
+    private async Task KillProcess(int pid, string name)
+    {
+        AuditSvc.Log(
+            Session.CurrentUser?.FullName ?? "Admin",
+            Agent.Hostname,
+            "Kill Process",
+            "Process",
+            $"Terminated PID {pid} ({name})"
+        );
+
+        await AgentSvc.KillProcessAsync(Agent.AgentId, pid);
+        await Task.Delay(500);
+        await RefreshProcesses();
+    }
+
+    private void HandleProcessesUpdated(string agentId, List<ProcessDto> list)
+    {
+        if (agentId != Agent.AgentId) return;
+
+        InvokeAsync(() =>
+        {
+            isLoading = false;
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose()
+    {
+        AgentSvc.OnProcessesUpdated -= HandleProcessesUpdated;
+    }
+}

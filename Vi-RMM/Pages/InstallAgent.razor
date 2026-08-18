@@ -1,13 +1,85 @@
 @page "/agents/install"
+@inject NavigationManager Navigation
+
 <PageTitle>Install Agent - Vi-RMM</PageTitle>
+
 <div class="page-container">
     <div class="page-header">
-        <div><div class="eyebrow">Agents</div><h1>Install Agent</h1><p>Deploy the Vi-RMM endpoint service to a Windows computer.</p></div>
+        <div>
+            <div class="eyebrow">Endpoint Deployment</div>
+            <h1>Install Vi-RMM Agent</h1>
+            <p>Deploy the lightweight Windows service agent to automatically enroll computers into your live dashboard.</p>
+        </div>
+        <a class="secondary-button" href="/">← Back to Dashboard</a>
     </div>
-    <div class="summary-card">
-        <h3>Windows Agent</h3>
-        <p>The self-contained agent can be downloaded and installed without requiring a separate .NET runtime.</p>
-        <a class="primary-button" href="/downloads/Vi-RMM.Agent.exe">Download Vi-RMM Agent</a>
-        <p class="muted">The published EXE should be placed in <code>wwwroot/downloads/Vi-RMM.Agent.exe</code> before deployment.</p>
+
+    <div class="install-grid">
+        <div class="summary-card" style="grid-column: span 2;">
+            <div class="install-method-header">
+                <span class="method-badge">Option 1</span>
+                <h3>Direct Executable Download (Self-Contained)</h3>
+            </div>
+            <p>The compiled single-file Windows agent includes all dependencies and does not require .NET to be pre-installed on target machines.</p>
+            
+            <div class="download-action-box">
+                <a class="primary-button large-btn" href="/downloads/Vi-RMM.Agent.exe" download>
+                    ⬇ Download Vi-RMM.Agent.exe (Windows x64)
+                </a>
+                <span class="file-meta">Version 1.0.0 · Self-Contained EXE · 64-bit Windows</span>
+            </div>
+
+            <div class="instructions-box">
+                <h4>Installation Steps:</h4>
+                <ol>
+                    <li>Download <code>Vi-RMM.Agent.exe</code>.</li>
+                    <li>Open PowerShell or CMD <strong>as Administrator</strong>.</li>
+                    <li>Run the silent service installation command:
+                        <div class="code-copy-box">
+                            <code>.\Vi-RMM.Agent.exe --install --server @ServerUrl</code>
+                        </div>
+                    </li>
+                    <li>The agent will automatically register with your Vi-RMM dashboard and start sending live telemetry!</li>
+                </ol>
+            </div>
+        </div>
+
+        <div class="summary-card" style="grid-column: span 2;">
+            <div class="install-method-header">
+                <span class="method-badge">Option 2</span>
+                <h3>One-Liner PowerShell Remote Deployment</h3>
+            </div>
+            <p>Deploy silently across network computers or run directly in PowerShell on target endpoints:</p>
+
+            <div class="code-copy-box">
+                <code>powershell -ExecutionPolicy Bypass -Command "$server='@ServerUrl'; $dest=\"$env:ProgramFiles\Vi-RMM\"; New-Item -ItemType Directory -Force -Path $dest | Out-Null; Invoke-WebRequest -Uri \"$server/downloads/Vi-RMM.Agent.exe\" -OutFile \"$dest\Vi-RMM.Agent.exe\"; & \"$dest\Vi-RMM.Agent.exe\" --install --server $server"</code>
+            </div>
+        </div>
+
+        <div class="summary-card">
+            <h3>Command-Line Syntax Reference</h3>
+            <table class="simple-table" style="margin-top:10px;">
+                <thead><tr><th>Argument</th><th>Description</th></tr></thead>
+                <tbody>
+                    <tr><td><code>--install</code></td><td>Installs as auto-start Windows Service (<code>ViRMMAgent</code>)</td></tr>
+                    <tr><td><code>--uninstall</code></td><td>Stops and removes the Windows Service</td></tr>
+                    <tr><td><code>--server &lt;url&gt;</code></td><td>Sets custom RMM Server Hub URL (e.g. <code>@ServerUrl</code>)</td></tr>
+                    <tr><td><code>--client &lt;name&gt;</code></td><td>Assigns endpoint to client organization</td></tr>
+                    <tr><td><code>--site &lt;name&gt;</code></td><td>Assigns endpoint to physical office/site</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="summary-card">
+            <h3>Service Status Verification</h3>
+            <p>To verify the agent service status on any endpoint:</p>
+            <div class="code-copy-box" style="margin: 10px 0;">
+                <code>Get-Service ViRMMAgent</code>
+            </div>
+            <p class="muted">The agent reconnects automatically if the network drops or the machine reboots.</p>
+        </div>
     </div>
 </div>
+
+@code {
+    private string ServerUrl => Navigation.BaseUri.TrimEnd('/');
+}

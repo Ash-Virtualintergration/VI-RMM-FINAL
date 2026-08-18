@@ -1,0 +1,43 @@
+@page "/help"
+
+<PageTitle>Help & Documentation - Vi-RMM</PageTitle>
+
+<div class="page-container">
+    <div class="page-header">
+        <div>
+            <div class="eyebrow">Documentation</div>
+            <h1>Vi-RMM Help Center & User Manual</h1>
+            <p>Complete guide for managing endpoints, deploying agents, and utilizing remote management features.</p>
+        </div>
+    </div>
+
+    <div class="summary-grid">
+        <div class="summary-card">
+            <h3>⚡ Real-Time Features Overview</h3>
+            <ul style="padding-left:20px;line-height:1.8;font-size:13px;">
+                <li><strong>Live Command Terminal</strong>: Interactive PowerShell & CMD execution with live output streaming.</li>
+                <li><strong>Remote Desktop</strong>: Live desktop frame capture with mouse and keyboard input control.</li>
+                <li><strong>Remote File Manager</strong>: Browse, download, upload, create folders, and delete remote files.</li>
+                <li><strong>Process & Service Control</strong>: Terminate rogue processes and start/stop/restart Windows services.</li>
+                <li><strong>Automated Health Checks</strong>: Continuous evaluation of Defender, Firewall, Disks, CPU, and Event Logs.</li>
+            </ul>
+        </div>
+
+        <div class="summary-card">
+            <h3>🚀 Agent Deployment Guide</h3>
+            <p>Deploy the agent via the <a href="/agents/install" style="color:#22c7d6;">Install Agent</a> page.</p>
+            <div class="code-copy-box" style="margin: 10px 0;">
+                <code>Vi-RMM.Agent.exe --install --server &lt;server-url&gt;</code>
+            </div>
+            <p class="muted">Runs as a background Windows Service named <code>ViRMMAgent</code>.</p>
+        </div>
+
+        <div class="summary-card">
+            <h3>ℹ️ About Vi-RMM</h3>
+            <p><strong>Vi-RMM Web Console & Endpoint Management Agent</strong></p>
+            <p>Version: 1.0.0 Final</p>
+            <p>Platform: .NET 10 / ASP.NET Core Blazor / SignalR</p>
+            <p class="muted">All features clickable, live, and real-time capable.</p>
+        </div>
+    </div>
+</div>

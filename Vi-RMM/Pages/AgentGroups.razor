@@ -1,0 +1,48 @@
+@page "/agents/groups"
+@inject AgentService AgentSvc
+
+<PageTitle>Agent Groups - Vi-RMM</PageTitle>
+
+<div class="page-container">
+    <div class="page-header">
+        <div>
+            <div class="eyebrow">Organization</div>
+            <h1>Agent Dynamic Groups</h1>
+            <p>Group endpoints dynamically by Operating System, Client, Physical Site, or Hardware tags.</p>
+        </div>
+    </div>
+
+    <div class="summary-grid">
+        <div class="summary-card">
+            <h3>🏢 Client Organizations</h3>
+            <p>Grouped by organizational ownership</p>
+            <ul style="padding-left:20px;color:#cbd5e1;font-size:13px;line-height:1.8;">
+                @foreach (var c in AgentSvc.GetAllAgents().Select(a => a.Client).Distinct())
+                {
+                    <li><strong>@c</strong> (@AgentSvc.GetAllAgents().Count(a => a.Client == c) endpoints)</li>
+                }
+            </ul>
+        </div>
+
+        <div class="summary-card">
+            <h3>💻 Operating System Groups</h3>
+            <p>Grouped by platform & build</p>
+            <ul style="padding-left:20px;color:#cbd5e1;font-size:13px;line-height:1.8;">
+                <li><strong>Windows Servers</strong> (@AgentSvc.GetAllAgents().Count(a => a.OperatingSystem.Contains("Server", StringComparison.OrdinalIgnoreCase)))</li>
+                <li><strong>Windows 11 Workstations</strong> (@AgentSvc.GetAllAgents().Count(a => a.OperatingSystem.Contains("Windows 11", StringComparison.OrdinalIgnoreCase)))</li>
+                <li><strong>Windows 10 Workstations</strong> (@AgentSvc.GetAllAgents().Count(a => a.OperatingSystem.Contains("Windows 10", StringComparison.OrdinalIgnoreCase)))</li>
+            </ul>
+        </div>
+
+        <div class="summary-card">
+            <h3>📍 Physical Office Sites</h3>
+            <p>Grouped by branch / network site</p>
+            <ul style="padding-left:20px;color:#cbd5e1;font-size:13px;line-height:1.8;">
+                @foreach (var s in AgentSvc.GetAllAgents().Select(a => a.Site).Distinct())
+                {
+                    <li><strong>@s</strong> (@AgentSvc.GetAllAgents().Count(a => a.Site == s) endpoints)</li>
+                }
+            </ul>
+        </div>
+    </div>
+</div>

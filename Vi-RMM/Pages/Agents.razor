@@ -1,13 +1,96 @@
 @page "/agents"
-<PageTitle>Agents - Vi-RMM</PageTitle>
+@inject AgentService AgentSvc
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<PageTitle>All Agents - Vi-RMM</PageTitle>
+
 <div class="page-container">
     <div class="page-header">
-        <div><div class="eyebrow">Endpoint Management</div><h1>Agents</h1><p>Manage the Windows agents connected to Vi-RMM.</p></div>
-        <a class="primary-button" href="/agents/install">＋ Install Agent</a>
+        <div>
+            <div class="eyebrow">Endpoint Management</div>
+            <h1>All Connected Agents</h1>
+            <p>Live inventory of Windows servers and workstations registered to Vi-RMM.</p>
+        </div>
+        <div class="header-actions">
+            <a class="secondary-button" href="/">📊 Live Dashboard</a>
+            <a class="primary-button" href="/agents/install">＋ Install New Agent</a>
+        </div>
     </div>
-    <div class="summary-card">
-        <h3>Agent deployment</h3>
-        <p>Download the Vi-RMM Windows agent and install it as a Windows service.</p>
-        <a class="primary-button" href="/downloads/Vi-RMM.Agent.exe">Download Agent EXE</a>
+
+    <div class="agents-summary-cards">
+        <div class="summary-card">
+            <h3>Total Managed Endpoints</h3>
+            <div class="big-number">@AllAgents.Count</div>
+            <span class="muted">@AllAgents.Count(a => a.IsLiveConnected) with active real-time connection</span>
+        </div>
+        <div class="summary-card">
+            <h3>Online & Healthy</h3>
+            <div class="big-number online-text">@AllAgents.Count(a => a.Status == "Online")</div>
+            <span class="muted">Sub-second heartbeat telemetry</span>
+        </div>
+        <div class="summary-card">
+            <h3>Alerts & Warnings</h3>
+            <div class="big-number warning-text">@AllAgents.Count(a => a.Status != "Online")</div>
+            <span class="muted">Requires technician attention</span>
+        </div>
+    </div>
+
+    <div class="user-table" style="margin-top:20px;">
+        <div class="user-head" style="grid-template-columns: 2fr 1fr 1fr 1fr 1fr 2fr;">
+            <span>Hostname / Endpoint</span>
+            <span>Client</span>
+            <span>Site</span>
+            <span>Operating System</span>
+            <span>Status</span>
+            <span style="text-align:right">Actions</span>
+        </div>
+
+        @foreach (var agent in AllAgents)
+        {
+            <div class="user-row" style="grid-template-columns: 2fr 1fr 1fr 1fr 1fr 2fr;">
+                <div class="user-cell">
+                    <span class="avatar initials" style="background:#22c7d6;color:#071116;">🖥️</span>
+                    <div>
+                        <strong>
+                            @if (agent.IsLiveConnected)
+                            {
+                                <span class="live-tag">LIVE</span>
+                            }
+                            @agent.Hostname
+                        </strong>
+                        <small>@(string.IsNullOrEmpty(agent.Registration.LocalIp) ? "127.0.0.1" : agent.Registration.LocalIp) · @agent.User</small>
+                    </div>
+                </div>
+                <span>@agent.Client</span>
+                <span>@agent.Site</span>
+                <span>@agent.OperatingSystem</span>
+                <span>
+                    <span class="status-pill @(agent.Status.ToLowerInvariant())">
+                        <b class="status-dot @(agent.Status.ToLowerInvariant())"></b>
+                        @agent.Status
+                    </span>
+                </span>
+                <span class="actions" style="justify-content:flex-end;">
+                    <a href="/" class="primary-button" style="padding:6px 12px;font-size:12px;text-decoration:none;">Open in Dashboard →</a>
+                </span>
+            </div>
+        }
     </div>
 </div>
+
+@code {
+    private IReadOnlyList<ConnectedAgent> AllAgents => AgentSvc.GetAllAgents();
+
+    protected override void OnInitialized()
+    {
+        AgentSvc.OnChange += HandleAgentChange;
+    }
+
+    private void HandleAgentChange() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        AgentSvc.OnChange -= HandleAgentChange;
+    }
+}

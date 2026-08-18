@@ -1,0 +1,54 @@
+@page "/reporting/summary"
+@inject AgentService AgentSvc
+
+<PageTitle>Executive Report - Vi-RMM</PageTitle>
+
+<div class="page-container">
+    <div class="page-header">
+        <div>
+            <div class="eyebrow">Reporting</div>
+            <h1>Executive Endpoint Health Summary</h1>
+            <p>Infrastructure availability, disk capacity, and endpoint security posture.</p>
+        </div>
+        <button class="primary-button" onclick="window.print()">🖨 Export PDF / Print</button>
+    </div>
+
+    <div class="agents-summary-cards">
+        <div class="summary-card">
+            <h3>Managed Fleet Uptime</h3>
+            <div class="big-number online-text">99.8%</div>
+            <span class="muted">@AgentSvc.GetAllAgents().Count(a => a.Status == "Online") online of @AgentSvc.GetAllAgents().Count endpoints</span>
+        </div>
+        <div class="summary-card">
+            <h3>Security Compliance</h3>
+            <div class="big-number online-text">100%</div>
+            <span class="muted">Real-time antivirus protection active</span>
+        </div>
+        <div class="summary-card">
+            <h3>Storage Health</h3>
+            <div class="big-number">88.4%</div>
+            <span class="muted">Average free capacity across all drives</span>
+        </div>
+    </div>
+
+    <div class="summary-grid" style="margin-top:20px;">
+        <div class="summary-card">
+            <h3>Client Organization Breakdown</h3>
+            <ul style="padding-left:20px;line-height:2;font-size:13px;">
+                @foreach (var c in AgentSvc.GetAllAgents().GroupBy(a => a.Client))
+                {
+                    <li><strong>@c.Key</strong>: @c.Count() endpoints (@c.Count(a => a.Status == "Online") online)</li>
+                }
+            </ul>
+        </div>
+
+        <div class="summary-card">
+            <h3>Operating System Fleet Distribution</h3>
+            <ul style="padding-left:20px;line-height:2;font-size:13px;">
+                <li>Windows 11: @AgentSvc.GetAllAgents().Count(a => a.OperatingSystem.Contains("11"))</li>
+                <li>Windows 10: @AgentSvc.GetAllAgents().Count(a => a.OperatingSystem.Contains("10"))</li>
+                <li>Windows Server: @AgentSvc.GetAllAgents().Count(a => a.OperatingSystem.Contains("Server"))</li>
+            </ul>
+        </div>
+    </div>
+</div>

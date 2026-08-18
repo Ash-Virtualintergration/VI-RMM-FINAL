@@ -1,0 +1,127 @@
+@page "/agents/policies"
+@inject PolicyService Policies
+
+<PageTitle>Agent Policies - Vi-RMM</PageTitle>
+
+<div class="page-container">
+    <div class="page-header">
+        <div>
+            <div class="eyebrow">Policies & Automation</div>
+            <h1>Endpoint Monitoring Policies</h1>
+            <p>Define telemetry intervals, alert thresholds, and automated remediation rules.</p>
+        </div>
+        <button class="primary-button" @onclick="OpenCreate">＋ Create Policy</button>
+    </div>
+
+    <div class="user-table">
+        <div class="user-head" style="grid-template-columns: 2fr 1.5fr 1fr 1fr 1fr 1fr;">
+            <span>Policy Name</span>
+            <span>Target Group</span>
+            <span>Heartbeat</span>
+            <span>CPU Threshold</span>
+            <span>Disk Threshold</span>
+            <span style="text-align:right">Actions</span>
+        </div>
+
+        @foreach (var policy in Policies.All)
+        {
+            <div class="user-row" style="grid-template-columns: 2fr 1.5fr 1fr 1fr 1fr 1fr;">
+                <div>
+                    <strong>@policy.Name</strong>
+                    <small style="display:block;color:#8f9aa7;">Offline alert after @policy.OfflineThresholdMinutes min</small>
+                </div>
+                <span><span class="role-pill">@policy.TargetGroup</span></span>
+                <span>@policy.HeartbeatIntervalSeconds sec</span>
+                <span>@policy.HighCpuThresholdPercent%</span>
+                <span>&lt;@policy.LowDiskThresholdPercent% free</span>
+                <span class="actions" style="justify-content:flex-end;">
+                    <button @onclick="() => Edit(policy)">Edit</button>
+                    <button class="danger-text" @onclick="() => Delete(policy.Id)">Delete</button>
+                </span>
+            </div>
+        }
+    </div>
+</div>
+
+@if (showModal)
+{
+    <div class="modal-backdrop" @onclick="() => showModal = false">
+        <div class="modal" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3>@(editingPolicy.Id == Guid.Empty ? "Create Policy" : "Edit Policy")</h3>
+                <button class="icon-button" @onclick="() => showModal = false">×</button>
+            </div>
+            <div class="form-grid">
+                <label>Policy Name:
+                    <input @bind="editingPolicy.Name" />
+                </label>
+                <label>Target Group:
+                    <select @bind="editingPolicy.TargetGroup">
+                        <option>All Workstations & Servers</option>
+                        <option>Servers</option>
+                        <option>Workstations</option>
+                    </select>
+                </label>
+                <label>Heartbeat Interval (Seconds):
+                    <input type="number" @bind="editingPolicy.HeartbeatIntervalSeconds" />
+                </label>
+                <label>Offline Timeout (Minutes):
+                    <input type="number" @bind="editingPolicy.OfflineThresholdMinutes" />
+                </label>
+                <label>High CPU Alert (%):
+                    <input type="number" @bind="editingPolicy.HighCpuThresholdPercent" />
+                </label>
+                <label>Low Disk Space Alert (% Free):
+                    <input type="number" @bind="editingPolicy.LowDiskThresholdPercent" />
+                </label>
+                <label class="checkbox-label" style="grid-column: span 2;">
+                    <input type="checkbox" @bind="editingPolicy.AutoCheckDefender" /> Enable Real-Time Windows Defender Antivirus Check
+                </label>
+                <label class="checkbox-label" style="grid-column: span 2;">
+                    <input type="checkbox" @bind="editingPolicy.EmailAlertsOnFailure" /> Dispatch instant email alert upon check failure
+                </label>
+            </div>
+            <div class="modal-actions">
+                <button class="secondary-button" @onclick="() => showModal = false">Cancel</button>
+                <button class="primary-button" @onclick="SavePolicy">Save Policy</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool showModal;
+    private MonitoringPolicy editingPolicy = new();
+
+    private void OpenCreate()
+    {
+        editingPolicy = new MonitoringPolicy { Id = Guid.NewGuid() };
+        showModal = true;
+    }
+
+    private void Edit(MonitoringPolicy p)
+    {
+        editingPolicy = new MonitoringPolicy
+        {
+            Id = p.Id,
+            Name = p.Name,
+            TargetGroup = p.TargetGroup,
+            HeartbeatIntervalSeconds = p.HeartbeatIntervalSeconds,
+            OfflineThresholdMinutes = p.OfflineThresholdMinutes,
+            HighCpuThresholdPercent = p.HighCpuThresholdPercent,
+            LowDiskThresholdPercent = p.LowDiskThresholdPercent,
+            AutoCheckDefender = p.AutoCheckDefender,
+            EmailAlertsOnFailure = p.EmailAlertsOnFailure
+        };
+        showModal = true;
+    }
+
+    private void SavePolicy()
+    {
+        if (string.IsNullOrWhiteSpace(editingPolicy.Name)) return;
+        Policies.Save(editingPolicy);
+        showModal = false;
+    }
+
+    private void Delete(Guid id) => Policies.Delete(id);
+}

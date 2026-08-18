@@ -1,0 +1,179 @@
+@inject AgentService AgentSvc
+@inject AuditService AuditSvc
+@inject SessionState Session
+@implements IDisposable
+
+<div class="remote-desktop-container">
+    <div class="rd-toolbar">
+        <div class="rd-status">
+            <span class="status-dot @(isLiveStreaming ? "online" : "warning")"></span>
+            <strong>@(isLiveStreaming ? "Live Session Active" : "Stream Paused")</strong>
+            <span class="rd-meta">FPS: @(fps) · Quality: @(quality)% · Host: @Agent.Hostname</span>
+        </div>
+
+        <div class="rd-controls">
+            <button class="rd-btn @(isLiveStreaming ? "active" : "")" @onclick="ToggleStreaming">
+                @(isLiveStreaming ? "⏹ Pause Stream" : "▶ Start Stream")
+            </button>
+            <button class="rd-btn" @onclick="TakeScreenshot">📸 Snapshot</button>
+            <button class="rd-btn" @onclick="SendCtrlAltDel">🔒 Ctrl+Alt+Del</button>
+            <button class="rd-btn" @onclick="SendLockWorkstation">🔑 Lock Screen</button>
+
+            <select class="rd-select" @bind="quality" @bind:after="OnQualityChanged">
+                <option value="40">Low Quality (40%)</option>
+                <option value="65">Standard (65%)</option>
+                <option value="85">High Quality (85%)</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="rd-screen-viewport" @onclick="HandleScreenClick">
+        @if (!string.IsNullOrEmpty(currentScreenBase64))
+        {
+            <img src="data:image/jpeg;base64,@currentScreenBase64"
+                 alt="Remote Desktop Stream"
+                 class="rd-screen-image" />
+        }
+        else
+        {
+            <div class="rd-placeholder">
+                <div class="rd-placeholder-box">
+                    <span class="rd-icon">🖥️</span>
+                    <h3>Remote Screen Ready</h3>
+                    <p>Click "Start Stream" or "Snapshot" to begin real-time desktop monitoring.</p>
+                    <button class="primary-button" @onclick="StartStreaming">▶ Connect Live Screen</button>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public ConnectedAgent Agent { get; set; } = default!;
+
+    private bool isLiveStreaming;
+    private int fps = 2;
+    private int quality = 65;
+    private string currentScreenBase64 = "";
+    private CancellationTokenSource? streamCts;
+
+    protected override void OnInitialized()
+    {
+        AgentSvc.OnScreenFrame += HandleScreenFrame;
+        if (Agent.LatestScreen != null && Agent.LatestScreen.AgentId == Agent.AgentId)
+        {
+            currentScreenBase64 = Agent.LatestScreen.Base64Image;
+        }
+    }
+
+    private async Task StartStreaming()
+    {
+        isLiveStreaming = true;
+        streamCts?.Cancel();
+        streamCts = new CancellationTokenSource();
+        var token = streamCts.Token;
+
+        AuditSvc.Log(
+            Session.CurrentUser?.FullName ?? "Admin",
+            Agent.Hostname,
+            "Remote Screen Session",
+            "Remote",
+            "Started live screen stream session"
+        );
+
+        _ = Task.Run(async () =>
+        {
+            while (!token.IsCancellationRequested && isLiveStreaming)
+            {
+                await AgentSvc.CaptureScreenAsync(Agent.AgentId, quality);
+                await Task.Delay(1000 / Math.Max(1, fps), token);
+            }
+        }, token);
+    }
+
+    private void StopStreaming()
+    {
+        isLiveStreaming = false;
+        streamCts?.Cancel();
+    }
+
+    private async Task ToggleStreaming()
+    {
+        if (isLiveStreaming) StopStreaming();
+        else await StartStreaming();
+    }
+
+    private async Task TakeScreenshot()
+    {
+        await AgentSvc.CaptureScreenAsync(Agent.AgentId, 85);
+    }
+
+    private async Task SendCtrlAltDel()
+    {
+        AuditSvc.Log(
+            Session.CurrentUser?.FullName ?? "Admin",
+            Agent.Hostname,
+            "Remote Input",
+            "Remote",
+            "Sent Ctrl+Alt+Del signal"
+        );
+        await AgentSvc.SendInputAsync(Agent.AgentId, new RemoteInputDto
+        {
+            AgentId = Agent.AgentId,
+            EventType = "special_cad",
+            Ctrl = true,
+            Alt = true,
+            Key = "Delete"
+        });
+    }
+
+    private async Task SendLockWorkstation()
+    {
+        AuditSvc.Log(
+            Session.CurrentUser?.FullName ?? "Admin",
+            Agent.Hostname,
+            "System Action",
+            "System",
+            "Locked remote workstation"
+        );
+        await AgentSvc.ExecuteCommandAsync(Agent.AgentId, "rundll32.exe user32.dll,LockWorkStation", "CMD");
+    }
+
+    private async Task HandleScreenClick(MouseEventArgs e)
+    {
+        if (!isLiveStreaming) return;
+        await AgentSvc.SendInputAsync(Agent.AgentId, new RemoteInputDto
+        {
+            AgentId = Agent.AgentId,
+            EventType = "mouse_click",
+            X = (int)e.OffsetX,
+            Y = (int)e.OffsetY,
+            Button = e.Button == 2 ? "right" : "left"
+        });
+    }
+
+    private void HandleScreenFrame(ScreenFrameDto frame)
+    {
+        if (frame.AgentId != Agent.AgentId) return;
+
+        InvokeAsync(() =>
+        {
+            currentScreenBase64 = frame.Base64Image;
+            StateHasChanged();
+        });
+    }
+
+    private void OnQualityChanged()
+    {
+        if (isLiveStreaming)
+        {
+            _ = AgentSvc.CaptureScreenAsync(Agent.AgentId, quality);
+        }
+    }
+
+    public void Dispose()
+    {
+        StopStreaming();
+        AgentSvc.OnScreenFrame -= HandleScreenFrame;
+    }
+}
