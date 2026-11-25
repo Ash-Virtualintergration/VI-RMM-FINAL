@@ -4,9 +4,14 @@ namespace ViRMM.Services;
 
 public sealed class UserStore
 {
-    private readonly List<AppUser> users;
+    private readonly List<AppUser> users = [];
 
-    public UserStore(IWebHostEnvironment environment, IConfiguration configuration)
+    public bool IsConfigured { get; }
+
+    public UserStore(
+        IWebHostEnvironment environment,
+        IConfiguration configuration,
+        ILogger<UserStore> logger)
     {
         var password = environment.IsDevelopment()
             ? "admin"
@@ -14,10 +19,13 @@ public sealed class UserStore
 
         if (string.IsNullOrWhiteSpace(password))
         {
-            throw new InvalidOperationException(
-                "Set the ViRMM:AdminPassword configuration value before running outside Development.");
+            logger.LogError(
+                "Administrator sign-in is unavailable. Set ViRMM:AdminPassword before running outside Development.");
+            IsConfigured = false;
+            return;
         }
 
+        IsConfigured = true;
         users =
         [
             new AppUser

@@ -1,5 +1,7 @@
 @page "/agents/install"
 @inject NavigationManager Navigation
+@inject IConfiguration Configuration
+@inject IWebHostEnvironment Environment
 
 <PageTitle>Install Agent - Vi-RMM</PageTitle>
 
@@ -8,7 +10,7 @@
         <div>
             <div class="eyebrow">Endpoint Deployment</div>
             <h1>Install Vi-RMM Agent</h1>
-            <p>Deploy the lightweight Windows service agent to automatically enroll computers into your live dashboard.</p>
+            <p>Install the agent while this web console is running. The command below points it to the configured Vi-RMM server.</p>
         </div>
         <a class="secondary-button" href="/">← Back to Dashboard</a>
     </div>
@@ -38,7 +40,7 @@
                             <code>.\Vi-RMM.Agent.exe --install --server @ServerUrl</code>
                         </div>
                     </li>
-                    <li>Use a server URL reachable from the endpoint. <code>localhost</code> works only when the web console runs on that same computer.</li>
+                    <li>Server URL: <code>@ServerUrl</code>. Use HTTPS for remote endpoints; <code>localhost</code> works only when the web console runs on that same computer.</li>
                     <li>The agent will automatically register with your Vi-RMM dashboard and start sending live telemetry!</li>
                 </ol>
             </div>
@@ -82,5 +84,16 @@
 </div>
 
 @code {
-    private string ServerUrl => Navigation.BaseUri.TrimEnd('/');
+    private string ServerUrl
+    {
+        get
+        {
+            var configuredServerUrl = Environment.IsDevelopment()
+                ? null
+                : Configuration["ViRMM:AgentServerUrl"];
+            return string.IsNullOrWhiteSpace(configuredServerUrl)
+                ? Navigation.BaseUri.TrimEnd('/')
+                : configuredServerUrl.TrimEnd('/');
+        }
+    }
 }

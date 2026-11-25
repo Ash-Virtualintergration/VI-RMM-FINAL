@@ -24,6 +24,7 @@ dotnet run --project Vi-RMM/Vi-RMM.csproj
 - Password: `admin`
 
 These credentials work only with `ASPNETCORE_ENVIRONMENT=Development`. Outside Development, set the `ViRMM__AdminPassword` environment variable. This sample app is not production-secure; do not expose it publicly or connect real endpoints until proper authentication and agent-hub authorization are implemented.
+If the production password is missing, the login page displays a configuration message instead of becoming blank.
 
 ---
 
@@ -34,13 +35,15 @@ These credentials work only with `ASPNETCORE_ENVIRONMENT=Development`. Outside D
 2. Click **Download Vi-RMM.Agent.exe** (already compiled and ready in `wwwroot/downloads/`).
 3. Run as Administrator on target Windows endpoints:
    ```powershell
-   .\Vi-RMM.Agent.exe --install --server https://your-rmm-host
+   .\Vi-RMM.Agent.exe --install --server https://vi-rmm.runasp.net
    ```
 
+The install page reads `ViRMM:AgentServerUrl` from `Vi-RMM/appsettings.json`. Keep this address on HTTPS for remote agents and update it if the public server URL changes. In Development, the installer uses the current browser address.
+
 #### Method B: One-Liner PowerShell Deployment
-Run directly on target machines (as Administrator). Replace the server URL with the address of the running web console. `localhost` only works when the web console is running on the same machine as the agent:
+Run directly on target machines (as Administrator). `localhost` only works when the web console is running on the same machine as the agent:
 ```powershell
-powershell -ExecutionPolicy Bypass -Command "$server='https://your-rmm-host'; $dest=\"$env:ProgramFiles\Vi-RMM\"; New-Item -ItemType Directory -Force -Path $dest | Out-Null; Invoke-WebRequest -Uri \"$server/downloads/Vi-RMM.Agent.exe\" -OutFile \"$dest\Vi-RMM.Agent.exe\"; & \"$dest\Vi-RMM.Agent.exe\" --install --server $server"
+powershell -ExecutionPolicy Bypass -Command "$server='https://vi-rmm.runasp.net'; $dest=\"$env:ProgramFiles\Vi-RMM\"; New-Item -ItemType Directory -Force -Path $dest | Out-Null; Invoke-WebRequest -Uri \"$server/downloads/Vi-RMM.Agent.exe\" -OutFile \"$dest\Vi-RMM.Agent.exe\"; & \"$dest\Vi-RMM.Agent.exe\" --install --server $server"
 ```
 
 ---

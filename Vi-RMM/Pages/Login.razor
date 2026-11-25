@@ -1,7 +1,6 @@
 @page "/login"
 @using ViRMM.Services
 @using Microsoft.AspNetCore.Components.Web
-@inject IWebHostEnvironment Environment
 @inject UserStore Users
 @inject SessionState Session
 @inject NavigationManager Navigation
@@ -14,34 +13,31 @@
         <h1>Welcome to Vi-RMM</h1>
         <p>Sign in to your remote management console.</p>
 
-        <label>Username<input @bind="username" @bind:event="oninput" /></label>
-        <label>Password<input @bind="password" type="password" @onkeydown="HandleKey" /></label>
-
-        @if (!string.IsNullOrWhiteSpace(error))
+        @if (!Users.IsConfigured)
         {
-            <div class="error-box">@error</div>
+            <div class="error-box">
+                Sign-in is unavailable. Set the <code>ViRMM__AdminPassword</code> environment variable on the host, then restart the app.
+            </div>
         }
-
-        <button class="primary-button full" @onclick="SignIn">Sign In</button>
-        @if (Environment.IsDevelopment())
+        else
         {
-            <small class="demo-hint">Development login: admin / admin</small>
+            <label>Username<input @bind="username" @bind:event="oninput" /></label>
+            <label>Password<input @bind="password" type="password" @onkeydown="HandleKey" /></label>
+
+            @if (!string.IsNullOrWhiteSpace(error))
+            {
+                <div class="error-box">@error</div>
+            }
+
+            <button class="primary-button full" @onclick="SignIn">Sign In</button>
         }
     </div>
 </div>
 
 @code {
-    private string username = "admin";
+    private string username = "";
     private string password = "";
     private string error = "";
-
-    protected override void OnInitialized()
-    {
-        if (Environment.IsDevelopment())
-        {
-            password = "admin";
-        }
-    }
 
     private void SignIn()
     {
