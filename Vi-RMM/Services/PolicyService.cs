@@ -17,11 +17,7 @@ public class MonitoringPolicy
 
 public class PolicyService
 {
-    private readonly List<MonitoringPolicy> _policies =
-    [
-        new() { Name = "Standard Workstation Policy", TargetGroup = "Workstations", HighCpuThresholdPercent = 90, LowDiskThresholdPercent = 10 },
-        new() { Name = "Mission-Critical Server Policy", TargetGroup = "Servers", HighCpuThresholdPercent = 80, LowDiskThresholdPercent = 20, OfflineThresholdMinutes = 1 }
-    ];
+    private readonly List<MonitoringPolicy> _policies = [];
 
     public IReadOnlyList<MonitoringPolicy> All => _policies;
 

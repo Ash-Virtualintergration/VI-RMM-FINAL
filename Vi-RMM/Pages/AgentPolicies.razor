@@ -40,6 +40,10 @@
                 </span>
             </div>
         }
+        @if (!Policies.All.Any())
+        {
+            <div class="user-row"><span class="muted">No monitoring policies configured.</span></div>
+        }
     </div>
 </div>
 

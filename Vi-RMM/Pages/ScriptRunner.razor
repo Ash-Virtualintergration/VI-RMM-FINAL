@@ -33,6 +33,10 @@
                         <p class="muted" style="margin:8px 0;">@script.Description</p>
                     </div>
                 }
+                @if (!Scripts.All.Any())
+                {
+                    <p class="muted">No automation scripts configured.</p>
+                }
             </div>
         </div>
 
@@ -73,7 +77,7 @@
             else
             {
                 <div class="summary-card">
-                    <p class="muted">Select a script from the library on the left to review its code and execute it on an endpoint.</p>
+                    <p class="muted">No automation scripts are available.</p>
                 </div>
             }
         </div>
@@ -89,8 +93,6 @@
     protected override void OnInitialized()
     {
         selectedScript = Scripts.All.FirstOrDefault();
-        var firstAgent = AgentSvc.GetAllAgents().FirstOrDefault();
-        if (firstAgent != null) targetAgentId = firstAgent.AgentId;
     }
 
     private async Task RunScriptOnTarget()

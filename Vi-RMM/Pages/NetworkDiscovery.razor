@@ -1,4 +1,5 @@
 @page "/tools/discovery"
+@inject AgentService AgentSvc
 
 <PageTitle>Network Discovery - Vi-RMM</PageTitle>
 
@@ -7,27 +8,10 @@
         <div>
             <div class="eyebrow">Tools & Diagnostics</div>
             <h1>Network Discovery Scanner</h1>
-            <p>Scan local subnets through connected agent probes to discover unmanaged network devices.</p>
+            <p>Discover unmanaged network devices from a connected endpoint.</p>
         </div>
-        <button class="primary-button" @onclick="StartScan" disabled="@isScanning">
-            @(isScanning ? "Scanning Subnet..." : "🔍 Start Subnet Discovery")
-        </button>
+        <span class="muted">Discovery is unavailable until a scan provider is configured.</span>
     </div>
-
-    <div class="summary-card" style="margin-bottom:20px;">
-        <div style="display:flex;gap:15px;align-items:center;">
-            <label style="font-size:13px;font-weight:700;">Subnet Range:
-                <input class="full-input" @bind="subnetRange" style="width:200px;margin-left:8px;" />
-            </label>
-            <label style="font-size:13px;font-weight:700;">Probe Agent:
-                <select class="full-input" style="width:220px;margin-left:8px;">
-                    <option>PC-CPT-001 (Cape Town HQ)</option>
-                    <option>SRV-LON-001 (London Office)</option>
-                </select>
-            </label>
-        </div>
-    </div>
-
     <div class="user-table">
         <div class="user-head" style="grid-template-columns: 1.5fr 1.5fr 1.5fr 1fr 1fr;">
             <span>IP Address</span>
@@ -37,46 +21,6 @@
             <span>Agent Status</span>
         </div>
 
-        @foreach (var dev in discoveredDevices)
-        {
-            <div class="user-row" style="grid-template-columns: 1.5fr 1.5fr 1.5fr 1fr 1fr;">
-                <span><strong>@dev.Ip</strong></span>
-                <span><code>@dev.Mac</code></span>
-                <span>@dev.Name</span>
-                <span><span class="role-pill">@dev.Type</span></span>
-                <span>
-                    @if (dev.HasAgent)
-                    {
-                        <span class="status-pill active">Managed Agent</span>
-                    }
-                    else
-                    {
-                        <a href="/agents/install" class="secondary-button" style="padding:4px 8px;font-size:11px;text-decoration:none;">+ Deploy Agent</a>
-                    }
-                </span>
-            </div>
-        }
+        <div class="user-row"><span class="muted">No discovery results are available.</span></div>
     </div>
 </div>
-
-@code {
-    private string subnetRange = "192.168.1.0/24";
-    private bool isScanning;
-    private readonly List<DiscoveredDevice> discoveredDevices =
-    [
-        new("192.168.1.1", "00:1A:2B:3C:4D:5E", "Gateway-Router-MikroTik", "Network Gateway", false),
-        new("192.168.1.104", "E4:54:E8:90:12:34", "PC-CPT-001", "Windows Workstation", true),
-        new("192.168.1.105", "D8:BB:C1:23:45:67", "PC-CPT-002", "Windows Workstation", true),
-        new("192.168.1.120", "B0:7D:47:89:AB:CD", "HP-LaserJet-Pro-MFP", "Network Printer", false),
-        new("192.168.1.150", "44:D9:E7:01:23:45", "Synology-NAS-HQ", "Storage Appliance", false)
-    ];
-
-    private async Task StartScan()
-    {
-        isScanning = true;
-        await Task.Delay(1200);
-        isScanning = false;
-    }
-
-    private record DiscoveredDevice(string Ip, string Mac, string Name, string Type, bool HasAgent);
-}

@@ -21,6 +21,10 @@
                 {
                     <li><strong>@c</strong> (@AgentSvc.GetAllAgents().Count(a => a.Client == c) endpoints)</li>
                 }
+                @if (!AgentSvc.GetAllAgents().Any())
+                {
+                    <li>No endpoint data received.</li>
+                }
             </ul>
         </div>
 
@@ -41,6 +45,10 @@
                 @foreach (var s in AgentSvc.GetAllAgents().Select(a => a.Site).Distinct())
                 {
                     <li><strong>@s</strong> (@AgentSvc.GetAllAgents().Count(a => a.Site == s) endpoints)</li>
+                }
+                @if (!AgentSvc.GetAllAgents().Any())
+                {
+                    <li>No endpoint data received.</li>
                 }
             </ul>
         </div>

@@ -36,7 +36,7 @@
                 <span><span class="status-pill active">@((user.IsActive) ? "Active" : "Disabled")</span></span>
                 <span class="actions">
                     <button @onclick="() => Edit(user.Id)">Edit</button>
-                    <button @onclick="() => Reset(user.Id)">Reset Password</button>
+                    <button @onclick="() => Reset(user.Id)">Change Password</button>
                     <button class="danger-text" @onclick="() => Delete(user.Id)">Delete</button>
                 </span>
             </div>
@@ -79,9 +79,28 @@
     </div>
 }
 
+@if (resetUserId is not null)
+{
+    <div class="modal-backdrop">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>Change Password</h2>
+                <button class="icon-button" @onclick="CancelPasswordChange">×</button>
+            </div>
+            <label>New Password<input @bind="newPassword" type="password" /></label>
+            <div class="modal-actions">
+                <button class="secondary-button" @onclick="CancelPasswordChange">Cancel</button>
+                <button class="primary-button" @onclick="SavePassword">Save Password</button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private bool showForm;
     private Guid? editingId;
+    private Guid? resetUserId;
+    private string newPassword = "";
     private UserForm form = new();
 
     private void OpenCreate()
@@ -112,7 +131,8 @@
     {
         if (string.IsNullOrWhiteSpace(form.FullName) ||
             string.IsNullOrWhiteSpace(form.Username) ||
-            string.IsNullOrWhiteSpace(form.Email))
+            string.IsNullOrWhiteSpace(form.Email) ||
+            (editingId is null && string.IsNullOrWhiteSpace(form.Password)))
             return;
 
         if (editingId is null)
@@ -124,7 +144,7 @@
                 Email = form.Email.Trim(),
                 Role = form.Role,
                 IsActive = form.IsActive,
-                Password = string.IsNullOrWhiteSpace(form.Password) ? "ChangeMe123!" : form.Password
+                Password = form.Password
             });
         }
         else
@@ -146,11 +166,25 @@
 
     private void Reset(Guid id)
     {
-        var user = Users.Find(id);
+        resetUserId = id;
+        newPassword = "";
+    }
+
+    private void SavePassword()
+    {
+        if (resetUserId is null || string.IsNullOrWhiteSpace(newPassword)) return;
+        var user = Users.Find(resetUserId.Value);
         if (user is null) return;
 
-        user.Password = "ChangeMe123!";
+        user.Password = newPassword;
         Users.Save(user);
+        CancelPasswordChange();
+    }
+
+    private void CancelPasswordChange()
+    {
+        resetUserId = null;
+        newPassword = "";
     }
 
     private void Delete(Guid id)

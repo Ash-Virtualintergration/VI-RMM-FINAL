@@ -24,7 +24,9 @@ Clean two-project foundation:
 
 ## Important
 
-User management in this demo milestone is in-memory. It is NOT production authentication. The next backend milestone should replace UserStore/SessionState with ASP.NET Core Identity plus a central database, hashed passwords, persistent roles/claims, audit logging and real session/sign-out enforcement.
+User management and audit history are in-memory and reset when the application restarts. This is not production authentication. The login page redirects unauthenticated users to sign-in; the demo credentials `admin` / `admin` are enabled only in the Development environment. Outside Development, configure `ViRMM__AdminPassword` before starting the app.
+
+Do not expose this RMM console to the public internet or connect real endpoints until authentication, authorization, persistent storage, and the agent hub are secured for production.
 
 ## Run
 
@@ -34,5 +36,5 @@ Build -> Rebuild Solution.
 
 Run the Vi-RMM project.
 
-Demo login:
-admin / ChangeMe123!
+Development login:
+admin / admin

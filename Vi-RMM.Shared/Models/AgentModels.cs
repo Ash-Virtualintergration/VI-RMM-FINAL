@@ -4,11 +4,11 @@ public class AgentRegistrationDto
 {
     public string AgentId { get; set; } = Guid.NewGuid().ToString("N");
     public string Hostname { get; set; } = Environment.MachineName;
-    public string ClientName { get; set; } = "Default Client";
-    public string SiteName { get; set; } = "Main Site";
-    public string OperatingSystem { get; set; } = "Windows";
-    public string Architecture { get; set; } = "x64";
-    public string ProcessorName { get; set; } = "Unknown CPU";
+    public string ClientName { get; set; } = "";
+    public string SiteName { get; set; } = "";
+    public string OperatingSystem { get; set; } = "";
+    public string Architecture { get; set; } = "";
+    public string ProcessorName { get; set; } = "";
     public int CoreCount { get; set; } = Environment.ProcessorCount;
     public long TotalMemoryBytes { get; set; }
     public long TotalDiskBytes { get; set; }
@@ -55,7 +55,7 @@ public class DriveItemDto
 {
     public string Name { get; set; } = "";
     public string VolumeLabel { get; set; } = "";
-    public string FileSystem { get; set; } = "NTFS";
+    public string FileSystem { get; set; } = "";
     public long TotalBytes { get; set; }
     public long FreeBytes { get; set; }
     public double UsedPercent => TotalBytes > 0 ? Math.Round((double)(TotalBytes - FreeBytes) / TotalBytes * 100, 1) : 0;

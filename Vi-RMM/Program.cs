@@ -14,7 +14,7 @@ builder.Services.AddSignalR(options =>
 });
 
 builder.Services.AddSingleton<UserStore>();
-builder.Services.AddSingleton<SessionState>();
+builder.Services.AddScoped<SessionState>();
 builder.Services.AddSingleton<AgentService>();
 builder.Services.AddSingleton<AuditService>();
 builder.Services.AddSingleton<ScriptService>();

@@ -24,13 +24,20 @@
 
         @foreach (var agent in AgentSvc.GetAllAgents())
         {
-            <div class="user-row" style="grid-template-columns: 2fr 1.5fr 1.5fr 1.5fr 1fr;">
-                <span><strong>@agent.Hostname</strong></span>
-                <span>@agent.Client (@agent.Site)</span>
-                <span>@agent.OperatingSystem</span>
-                <span><code>KB5041585</code></span>
-                <span><span class="status-pill active">Compliant</span></span>
-            </div>
+            @foreach (var patch in agent.Patches)
+            {
+                <div class="user-row" style="grid-template-columns: 2fr 1.5fr 1.5fr 1.5fr 1fr;">
+                    <span><strong>@agent.Hostname</strong></span>
+                    <span>@agent.Client (@agent.Site)</span>
+                    <span>@agent.OperatingSystem</span>
+                    <span><code>@patch.KbArticleId</code></span>
+                    <span>@patch.Status</span>
+                </div>
+            }
+        }
+        @if (!AgentSvc.GetAllAgents().Any(agent => agent.Patches.Count > 0))
+        {
+            <div class="user-row"><span class="muted">No patch data received.</span></div>
         }
     </div>
 </div>

@@ -59,7 +59,7 @@
                             }
                             @agent.Hostname
                         </strong>
-                        <small>@(string.IsNullOrEmpty(agent.Registration.LocalIp) ? "127.0.0.1" : agent.Registration.LocalIp) · @agent.User</small>
+                        <small>@(string.IsNullOrEmpty(agent.Registration.LocalIp) ? "Not reported" : agent.Registration.LocalIp) · @agent.User</small>
                     </div>
                 </div>
                 <span>@agent.Client</span>
@@ -75,6 +75,10 @@
                     <a href="/" class="primary-button" style="padding:6px 12px;font-size:12px;text-decoration:none;">Open in Dashboard →</a>
                 </span>
             </div>
+        }
+        @if (AllAgents.Count == 0)
+        {
+            <div class="user-row"><span class="muted">No agents have connected yet.</span></div>
         }
     </div>
 </div>

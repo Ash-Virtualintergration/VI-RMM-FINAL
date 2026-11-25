@@ -17,10 +17,6 @@
                     </button>
                 }
             }
-            else
-            {
-                <button class="drive-btn active" @onclick='() => NavigateTo("C:\\")'>💾 C:\</button>
-            }
         </div>
 
         <div class="fm-actions">
@@ -70,13 +66,11 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @if (listing?.Items == null || listing.Items.Count == 0)
+                    @if (!string.IsNullOrEmpty(operationError))
                     {
-                        <tr>
-                            <td colspan="5" class="empty-cell">Folder is empty.</td>
-                        </tr>
+                        <tr><td colspan="5" class="fm-error">@operationError</td></tr>
                     }
-                    else
+                    @if (listing?.Items?.Count > 0)
                     {
                         @foreach (var item in listing.Items.OrderByDescending(i => i.IsDirectory).ThenBy(i => i.Name))
                         {
@@ -110,6 +104,10 @@
                                 </td>
                             </tr>
                         }
+                    }
+                    else if (string.IsNullOrEmpty(operationError))
+                    {
+                        <tr><td colspan="5" class="empty-cell">Folder is empty.</td></tr>
                     }
                 </tbody>
             </table>
@@ -172,6 +170,7 @@
     private string currentPath = "C:\\";
     private DirectoryListingDto? listing;
     private bool isLoading = true;
+    private string operationError = "";
 
     private bool showPreviewModal;
     private string previewFilePath = "";
@@ -192,7 +191,19 @@
     {
         if (listing == null)
         {
-            await NavigateTo("C:\\");
+            var drive = Agent.Registration.Drives.FirstOrDefault();
+            if (drive is null)
+            {
+                listing = new DirectoryListingDto
+                {
+                    RequestId = Agent.AgentId,
+                    Error = "No drive information received from the endpoint."
+                };
+                isLoading = false;
+                return;
+            }
+
+            await NavigateTo(drive.Name);
         }
     }
 
@@ -327,6 +338,7 @@
     private void HandleFileOpResult(FileOperationResultDto res)
     {
         if (res.RequestId != Agent.AgentId) return;
+        operationError = res.Success ? "" : res.Message ?? "File operation failed.";
         InvokeAsync(RefreshCurrent);
     }
 

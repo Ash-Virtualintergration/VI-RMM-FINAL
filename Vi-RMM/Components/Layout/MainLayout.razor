@@ -4,6 +4,8 @@
 @inject NavigationManager Navigation
 
 <div class="app-shell @(darkMode ? "theme-dark" : "theme-light")" @onclick="CloseAllMenus">
+    @if (!IsLoginPage)
+    {
     <header class="topbar">
         <a href="/" class="brand" style="text-decoration:none;color:inherit;">
             <div class="brand-mark">V</div>
@@ -118,6 +120,7 @@
             }
         </div>
     </header>
+    }
 
     <main class="main-area">
         @Body
@@ -133,6 +136,18 @@
     {
         darkMode = true;
     }
+
+    protected override void OnParametersSet()
+    {
+        if (!IsLoginPage && Session.CurrentUser is null)
+        {
+            Navigation.NavigateTo("/login", replace: true);
+        }
+    }
+
+    private bool IsLoginPage =>
+        Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', 2)[0].TrimEnd('/')
+            .Equals("login", StringComparison.OrdinalIgnoreCase);
 
     private void ToggleMenu(string menuName)
     {

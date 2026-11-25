@@ -28,11 +28,15 @@
             <div class="user-row" style="grid-template-columns: 1.5fr 1.5fr 2fr 1fr 1fr 1fr;">
                 <span><strong>@agent.Hostname</strong></span>
                 <span>@agent.Client (@agent.Site)</span>
-                <span>@(string.IsNullOrEmpty(agent.Registration.ProcessorName) ? "Intel / AMD" : agent.Registration.ProcessorName)</span>
-                <span>@(agent.Registration.TotalMemoryBytes > 0 ? $"{agent.Registration.TotalMemoryBytes / (1024 * 1024 * 1024)} GB" : "16 GB")</span>
-                <span>@(agent.Registration.TotalDiskBytes > 0 ? $"{agent.Registration.TotalDiskBytes / (1024 * 1024 * 1024)} GB" : "512 GB")</span>
-                <span><code>@(string.IsNullOrEmpty(agent.Registration.LocalIp) ? "192.168.1.100" : agent.Registration.LocalIp)</code></span>
+                <span>@(string.IsNullOrEmpty(agent.Registration.ProcessorName) ? "Not reported" : agent.Registration.ProcessorName)</span>
+                <span>@(agent.Registration.TotalMemoryBytes > 0 ? $"{agent.Registration.TotalMemoryBytes / (1024 * 1024 * 1024)} GB" : "Not reported")</span>
+                <span>@(agent.Registration.TotalDiskBytes > 0 ? $"{agent.Registration.TotalDiskBytes / (1024 * 1024 * 1024)} GB" : "Not reported")</span>
+                <span><code>@(string.IsNullOrEmpty(agent.Registration.LocalIp) ? "Not reported" : agent.Registration.LocalIp)</code></span>
             </div>
+        }
+        @if (!AgentSvc.GetAllAgents().Any())
+        {
+            <div class="user-row"><span class="muted">No endpoint data received.</span></div>
         }
     </div>
 </div>

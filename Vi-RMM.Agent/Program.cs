@@ -11,8 +11,8 @@ const string ServiceName = "ViRMMAgent";
 
 // Parse CLI arguments
 string? customServerUrl = null;
-string clientName = "Default Client";
-string siteName = "Main Site";
+string clientName = "";
+string siteName = "";
 string agentId = GetOrCreateAgentId();
 
 // Try loading saved config from %ProgramData%\Vi-RMM\config.txt if it exists

@@ -35,5 +35,9 @@
                 </span>
             </div>
         }
+        @if (!AuditSvc.All.Any())
+        {
+            <div class="user-row"><span class="muted">No audit activity recorded.</span></div>
+        }
     </div>
 </div>

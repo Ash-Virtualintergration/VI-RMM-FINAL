@@ -4,27 +4,33 @@ namespace ViRMM.Services;
 
 public sealed class UserStore
 {
-    private readonly List<AppUser> users =
-    [
-        new AppUser
+    private readonly List<AppUser> users;
+
+    public UserStore(IWebHostEnvironment environment, IConfiguration configuration)
+    {
+        var password = environment.IsDevelopment()
+            ? "admin"
+            : configuration["ViRMM:AdminPassword"];
+
+        if (string.IsNullOrWhiteSpace(password))
         {
-            FullName = "Ashley Durgapersad",
-            Username = "admin",
-            Email = "admin@vi-rmm.local",
-            Role = "Administrator",
-            Password = "ChangeMe123!",
-            IsActive = true
-        },
-        new AppUser
-        {
-            FullName = "John Technician",
-            Username = "tech",
-            Email = "tech@vi-rmm.local",
-            Role = "Technician",
-            Password = "ChangeMe123!",
-            IsActive = true
+            throw new InvalidOperationException(
+                "Set the ViRMM:AdminPassword configuration value before running outside Development.");
         }
-    ];
+
+        users =
+        [
+            new AppUser
+            {
+                FullName = "Administrator",
+                Username = "admin",
+                Email = "",
+                Role = "Administrator",
+                Password = password,
+                IsActive = true
+            }
+        ];
+    }
 
     public IReadOnlyList<AppUser> All => users;
 

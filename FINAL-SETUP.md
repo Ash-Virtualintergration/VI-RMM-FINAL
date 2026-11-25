@@ -19,9 +19,11 @@ Open `Vi-RMM.sln` in Visual Studio 2022 / VS Code, or run:
 dotnet run --project Vi-RMM/Vi-RMM.csproj
 ```
 
-**Credentials:**
+**Development credentials:**
 - Username: `admin`
-- Password: `ChangeMe123!`
+- Password: `admin`
+
+These credentials work only with `ASPNETCORE_ENVIRONMENT=Development`. Outside Development, set the `ViRMM__AdminPassword` environment variable. This sample app is not production-secure; do not expose it publicly or connect real endpoints until proper authentication and agent-hub authorization are implemented.
 
 ---
 
@@ -32,13 +34,13 @@ dotnet run --project Vi-RMM/Vi-RMM.csproj
 2. Click **Download Vi-RMM.Agent.exe** (already compiled and ready in `wwwroot/downloads/`).
 3. Run as Administrator on target Windows endpoints:
    ```powershell
-   .\Vi-RMM.Agent.exe --install --server https://localhost:7250
+   .\Vi-RMM.Agent.exe --install --server https://your-rmm-host
    ```
 
 #### Method B: One-Liner PowerShell Deployment
-Run directly on target machines (as Administrator):
+Run directly on target machines (as Administrator). Replace the server URL with the address of the running web console. `localhost` only works when the web console is running on the same machine as the agent:
 ```powershell
-powershell -ExecutionPolicy Bypass -Command "$server='https://localhost:7250'; $dest=\"$env:ProgramFiles\Vi-RMM\"; New-Item -ItemType Directory -Force -Path $dest | Out-Null; Invoke-WebRequest -Uri \"$server/downloads/Vi-RMM.Agent.exe\" -OutFile \"$dest\Vi-RMM.Agent.exe\"; & \"$dest\Vi-RMM.Agent.exe\" --install --server $server"
+powershell -ExecutionPolicy Bypass -Command "$server='https://your-rmm-host'; $dest=\"$env:ProgramFiles\Vi-RMM\"; New-Item -ItemType Directory -Force -Path $dest | Out-Null; Invoke-WebRequest -Uri \"$server/downloads/Vi-RMM.Agent.exe\" -OutFile \"$dest\Vi-RMM.Agent.exe\"; & \"$dest\Vi-RMM.Agent.exe\" --install --server $server"
 ```
 
 ---

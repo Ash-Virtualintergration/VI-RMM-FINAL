@@ -3,6 +3,21 @@
 
 <PageTitle>Executive Report - Vi-RMM</PageTitle>
 
+@{
+    var agents = AgentSvc.GetAllAgents();
+    var checks = agents.SelectMany(agent => agent.Checks).ToArray();
+    var drives = agents.SelectMany(agent => agent.Registration.Drives).ToArray();
+    var onlineCount = agents.Count(agent => agent.Status == "Online");
+    var onlineSummary = agents.Count == 0 ? "—" : $"{onlineCount} / {agents.Count}";
+    var complianceSummary = checks.Length == 0
+        ? "—"
+        : $"{checks.Count(check => check.IsPassing) * 100.0 / checks.Length:F1}%";
+    var totalStorage = drives.Sum(drive => drive.TotalBytes);
+    var storageSummary = totalStorage == 0
+        ? "—"
+        : $"{drives.Sum(drive => drive.FreeBytes) * 100.0 / totalStorage:F1}%";
+}
+
 <div class="page-container">
     <div class="page-header">
         <div>
@@ -15,19 +30,19 @@
 
     <div class="agents-summary-cards">
         <div class="summary-card">
-            <h3>Managed Fleet Uptime</h3>
-            <div class="big-number online-text">99.8%</div>
-            <span class="muted">@AgentSvc.GetAllAgents().Count(a => a.Status == "Online") online of @AgentSvc.GetAllAgents().Count endpoints</span>
+            <h3>Endpoints Currently Online</h3>
+            <div class="big-number online-text">@onlineSummary</div>
+            <span class="muted">Based on current agent connections</span>
         </div>
         <div class="summary-card">
             <h3>Security Compliance</h3>
-            <div class="big-number online-text">100%</div>
-            <span class="muted">Real-time antivirus protection active</span>
+            <div class="big-number">@complianceSummary</div>
+            <span class="muted">@(checks.Length == 0 ? "No health-check data received" : $"{checks.Length} reported checks")</span>
         </div>
         <div class="summary-card">
             <h3>Storage Health</h3>
-            <div class="big-number">88.4%</div>
-            <span class="muted">Average free capacity across all drives</span>
+            <div class="big-number">@storageSummary</div>
+            <span class="muted">@(drives.Length == 0 ? "No drive data received" : "Free capacity across reported drives")</span>
         </div>
     </div>
 
@@ -35,9 +50,13 @@
         <div class="summary-card">
             <h3>Client Organization Breakdown</h3>
             <ul style="padding-left:20px;line-height:2;font-size:13px;">
-                @foreach (var c in AgentSvc.GetAllAgents().GroupBy(a => a.Client))
+                @foreach (var c in agents.GroupBy(a => string.IsNullOrWhiteSpace(a.Client) ? "Unassigned" : a.Client))
                 {
                     <li><strong>@c.Key</strong>: @c.Count() endpoints (@c.Count(a => a.Status == "Online") online)</li>
+                }
+                @if (agents.Count == 0)
+                {
+                    <li>No endpoint data received.</li>
                 }
             </ul>
         </div>
@@ -45,9 +64,9 @@
         <div class="summary-card">
             <h3>Operating System Fleet Distribution</h3>
             <ul style="padding-left:20px;line-height:2;font-size:13px;">
-                <li>Windows 11: @AgentSvc.GetAllAgents().Count(a => a.OperatingSystem.Contains("11"))</li>
-                <li>Windows 10: @AgentSvc.GetAllAgents().Count(a => a.OperatingSystem.Contains("10"))</li>
-                <li>Windows Server: @AgentSvc.GetAllAgents().Count(a => a.OperatingSystem.Contains("Server"))</li>
+                <li>Windows 11: @agents.Count(a => a.OperatingSystem.Contains("11", StringComparison.OrdinalIgnoreCase))</li>
+                <li>Windows 10: @agents.Count(a => a.OperatingSystem.Contains("10", StringComparison.OrdinalIgnoreCase))</li>
+                <li>Windows Server: @agents.Count(a => a.OperatingSystem.Contains("Server", StringComparison.OrdinalIgnoreCase))</li>
             </ul>
         </div>
     </div>

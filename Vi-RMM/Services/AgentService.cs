@@ -12,20 +12,20 @@ public class ConnectedAgent
     public AgentRegistrationDto Registration { get; set; } = new();
     public AgentHeartbeatDto? LatestHeartbeat { get; set; }
     public bool IsLiveConnected => !string.IsNullOrEmpty(ConnectionId);
-    public string Status => IsLiveConnected ? (LatestHeartbeat?.Status ?? "Online") : "Offline";
+    public string Status => IsLiveConnected ? (LatestHeartbeat?.Status ?? "Connected") : "Offline";
     public DateTime LastSeenUtc { get; set; } = DateTime.UtcNow;
     public string Client => Registration.ClientName;
     public string Site => Registration.SiteName;
     public string Hostname => Registration.Hostname;
     public string User => LatestHeartbeat?.LoggedUser ?? Registration.LoggedUser;
     public string OperatingSystem => Registration.OperatingSystem;
-    public double CpuPercent => LatestHeartbeat?.CpuUsagePercent ?? 12.5;
+    public double CpuPercent => LatestHeartbeat?.CpuUsagePercent ?? 0;
     public double MemoryUsedPercent
     {
         get
         {
-            if (Registration.TotalMemoryBytes <= 0) return 45.0;
-            var used = LatestHeartbeat?.UsedMemoryBytes ?? (Registration.TotalMemoryBytes / 2);
+            if (Registration.TotalMemoryBytes <= 0 || LatestHeartbeat is null) return 0;
+            var used = LatestHeartbeat.UsedMemoryBytes;
             return Math.Round((double)used / Registration.TotalMemoryBytes * 100, 1);
         }
     }
@@ -74,7 +74,6 @@ public class AgentService
     {
         _hubContext = hubContext;
         _logger = logger;
-        SeedDefaultAgents();
     }
 
     public IReadOnlyList<ConnectedAgent> GetAllAgents() => _agents.Values.OrderByDescending(a => a.IsLiveConnected).ThenBy(a => a.Hostname).ToList();
@@ -102,8 +101,7 @@ public class AgentService
                 AgentId = reg.AgentId,
                 ConnectionId = connectionId,
                 Registration = reg,
-                LastSeenUtc = DateTime.UtcNow,
-                Checks = GenerateDefaultChecks(reg.Hostname)
+                LastSeenUtc = DateTime.UtcNow
             };
             _agents[reg.AgentId] = newAgent;
         }
@@ -232,17 +230,14 @@ public class AgentService
         }
         else
         {
-            // Simulated response for offline/seed agent
-            _ = Task.Run(async () =>
+            _logger.LogWarning("Cannot execute command: agent {AgentId} is not connected.", agentId);
+            ReceiveCommandOutput(new CommandOutputChunkDto
             {
-                await Task.Delay(200);
-                ReceiveCommandOutput(new CommandOutputChunkDto
-                {
-                    AgentId = agentId,
-                    Text = $"[Simulated Shell: {shell}] {command}\r\nCommand completed successfully on {agent?.Hostname ?? "Target"}.",
-                    IsCompleted = true,
-                    ExitCode = 0
-                });
+                AgentId = agentId,
+                Text = "Command not sent: endpoint is not connected.",
+                IsError = true,
+                IsCompleted = true,
+                ExitCode = -1
             });
         }
     }
@@ -256,25 +251,13 @@ public class AgentService
         }
         else
         {
-            // Default sample directory
-            var sample = new DirectoryListingDto
+            _logger.LogWarning("Cannot browse files: agent {AgentId} is not connected.", agentId);
+            ReceiveDirectoryListing(new DirectoryListingDto
             {
                 RequestId = agentId,
-                CurrentPath = string.IsNullOrEmpty(path) ? "C:\\" : path,
-                ParentPath = "C:\\",
-                Drives = [
-                    new DriveItemDto { Name = "C:\\", VolumeLabel = "OS_Disk", TotalBytes = 512L * 1024 * 1024 * 1024, FreeBytes = 144L * 1024 * 1024 * 1024 },
-                    new DriveItemDto { Name = "D:\\", VolumeLabel = "Data", TotalBytes = 1024L * 1024 * 1024 * 1024, FreeBytes = 620L * 1024 * 1024 * 1024 }
-                ],
-                Items = [
-                    new FileItemDto { Name = "Program Files", Path = "C:\\Program Files", IsDirectory = true, LastModifiedUtc = DateTime.UtcNow.AddDays(-10) },
-                    new FileItemDto { Name = "Program Files (x86)", Path = "C:\\Program Files (x86)", IsDirectory = true, LastModifiedUtc = DateTime.UtcNow.AddDays(-10) },
-                    new FileItemDto { Name = "Users", Path = "C:\\Users", IsDirectory = true, LastModifiedUtc = DateTime.UtcNow.AddDays(-5) },
-                    new FileItemDto { Name = "Windows", Path = "C:\\Windows", IsDirectory = true, LastModifiedUtc = DateTime.UtcNow.AddDays(-2) },
-                    new FileItemDto { Name = "vi-rmm-agent-log.txt", Path = "C:\\vi-rmm-agent-log.txt", IsDirectory = false, SizeBytes = 4096, LastModifiedUtc = DateTime.UtcNow }
-                ]
-            };
-            ReceiveDirectoryListing(sample);
+                CurrentPath = path,
+                Error = "Endpoint is not connected."
+            });
         }
     }
 
@@ -287,11 +270,12 @@ public class AgentService
         }
         else
         {
+            _logger.LogWarning("Cannot read file: agent {AgentId} is not connected.", agentId);
             ReceiveFileContent(new FileContentResponseDto
             {
                 RequestId = agentId,
                 Path = path,
-                TextContent = $"[File Content Preview for: {path}]\nGenerated by Vi-RMM Console\nTimestamp: {DateTime.UtcNow:O}\nAll endpoint services operating normally."
+                Error = "Endpoint is not connected."
             });
         }
     }
@@ -305,7 +289,8 @@ public class AgentService
         }
         else
         {
-            ReceiveFileOpResult(new FileOperationResultDto { RequestId = agentId, Success = true, Message = "File uploaded successfully." });
+            _logger.LogWarning("Cannot upload file: agent {AgentId} is not connected.", agentId);
+            ReceiveFileOpResult(new FileOperationResultDto { RequestId = agentId, Success = false, Message = "Endpoint is not connected." });
         }
     }
 
@@ -318,7 +303,8 @@ public class AgentService
         }
         else
         {
-            ReceiveFileOpResult(new FileOperationResultDto { RequestId = agentId, Success = true, Message = "Deleted successfully." });
+            _logger.LogWarning("Cannot delete file: agent {AgentId} is not connected.", agentId);
+            ReceiveFileOpResult(new FileOperationResultDto { RequestId = agentId, Success = false, Message = "Endpoint is not connected." });
         }
     }
 
@@ -331,7 +317,8 @@ public class AgentService
         }
         else
         {
-            ReceiveFileOpResult(new FileOperationResultDto { RequestId = agentId, Success = true, Message = "Folder created." });
+            _logger.LogWarning("Cannot create folder: agent {AgentId} is not connected.", agentId);
+            ReceiveFileOpResult(new FileOperationResultDto { RequestId = agentId, Success = false, Message = "Endpoint is not connected." });
         }
     }
 
@@ -342,6 +329,7 @@ public class AgentService
         {
             await _hubContext.Clients.Client(agent.ConnectionId).SendAsync("GetProcesses", agentId);
         }
+        else _logger.LogWarning("Cannot retrieve processes: agent {AgentId} is not connected.", agentId);
     }
 
     public async Task KillProcessAsync(string agentId, int pid)
@@ -351,6 +339,7 @@ public class AgentService
         {
             await _hubContext.Clients.Client(agent.ConnectionId).SendAsync("KillProcess", agentId, pid);
         }
+        else _logger.LogWarning("Cannot terminate process: agent {AgentId} is not connected.", agentId);
     }
 
     public async Task GetServicesAsync(string agentId)
@@ -360,6 +349,7 @@ public class AgentService
         {
             await _hubContext.Clients.Client(agent.ConnectionId).SendAsync("GetServices", agentId);
         }
+        else _logger.LogWarning("Cannot retrieve services: agent {AgentId} is not connected.", agentId);
     }
 
     public async Task ControlServiceAsync(string agentId, string serviceName, string action)
@@ -369,6 +359,7 @@ public class AgentService
         {
             await _hubContext.Clients.Client(agent.ConnectionId).SendAsync("ControlService", agentId, serviceName, action);
         }
+        else _logger.LogWarning("Cannot control service: agent {AgentId} is not connected.", agentId);
     }
 
     public async Task CaptureScreenAsync(string agentId, int quality = 65)
@@ -378,6 +369,7 @@ public class AgentService
         {
             await _hubContext.Clients.Client(agent.ConnectionId).SendAsync("CaptureScreen", agentId, quality);
         }
+        else _logger.LogWarning("Cannot capture screen: agent {AgentId} is not connected.", agentId);
     }
 
     public async Task SendInputAsync(string agentId, RemoteInputDto input)
@@ -387,6 +379,7 @@ public class AgentService
         {
             await _hubContext.Clients.Client(agent.ConnectionId).SendAsync("SendRemoteInput", input);
         }
+        else _logger.LogWarning("Cannot send remote input: agent {AgentId} is not connected.", agentId);
     }
 
     public async Task GetChecksAsync(string agentId)
@@ -396,6 +389,7 @@ public class AgentService
         {
             await _hubContext.Clients.Client(agent.ConnectionId).SendAsync("GetChecks", agentId);
         }
+        else _logger.LogWarning("Cannot retrieve checks: agent {AgentId} is not connected.", agentId);
     }
 
     public async Task GetSoftwareAsync(string agentId)
@@ -405,6 +399,7 @@ public class AgentService
         {
             await _hubContext.Clients.Client(agent.ConnectionId).SendAsync("GetSoftware", agentId);
         }
+        else _logger.LogWarning("Cannot retrieve software inventory: agent {AgentId} is not connected.", agentId);
     }
 
     public async Task RebootAsync(string agentId)
@@ -414,6 +409,7 @@ public class AgentService
         {
             await _hubContext.Clients.Client(agent.ConnectionId).SendAsync("SystemAction", "reboot");
         }
+        else _logger.LogWarning("Cannot reboot: agent {AgentId} is not connected.", agentId);
     }
 
     public void SaveNotes(string agentId, string notes)
@@ -436,238 +432,4 @@ public class AgentService
         OnChange?.Invoke();
     }
 
-    private void SeedDefaultAgents()
-    {
-        var list = new List<ConnectedAgent>
-        {
-            new()
-            {
-                AgentId = "demo-pc-cpt-001",
-                Registration = new AgentRegistrationDto
-                {
-                    AgentId = "demo-pc-cpt-001",
-                    Hostname = "PC-CPT-001",
-                    ClientName = "Company 1",
-                    SiteName = "Cape Town HQ",
-                    OperatingSystem = "Windows 11 Pro (23H2)",
-                    ProcessorName = "Intel Core i7-12700K",
-                    CoreCount = 12,
-                    TotalMemoryBytes = 16L * 1024 * 1024 * 1024,
-                    TotalDiskBytes = 512L * 1024 * 1024 * 1024,
-                    FreeDiskBytes = 144L * 1024 * 1024 * 1024,
-                    LoggedUser = "Ashley",
-                    LocalIp = "192.168.1.104",
-                    PublicIp = "102.132.88.12",
-                    AgentVersion = "1.0.0",
-                    IsLiveAgent = false,
-                    Drives = [
-                        new DriveItemDto { Name = "C:", VolumeLabel = "OS", TotalBytes = 512L * 1024 * 1024 * 1024, FreeBytes = 144L * 1024 * 1024 * 1024 }
-                    ]
-                },
-                LatestHeartbeat = new AgentHeartbeatDto
-                {
-                    AgentId = "demo-pc-cpt-001",
-                    CpuUsagePercent = 8.4,
-                    UsedMemoryBytes = 7L * 1024 * 1024 * 1024,
-                    TotalMemoryBytes = 16L * 1024 * 1024 * 1024,
-                    FreeMemoryBytes = 9L * 1024 * 1024 * 1024,
-                    FreeDiskBytes = 144L * 1024 * 1024 * 1024,
-                    TotalDiskBytes = 512L * 1024 * 1024 * 1024,
-                    LoggedUser = "Ashley",
-                    UpTime = TimeSpan.FromHours(78),
-                    ProcessCount = 142,
-                    ServiceCount = 89,
-                    HealthyChecksCount = 9,
-                    TotalChecksCount = 9,
-                    Status = "Online"
-                },
-                Checks = GenerateDefaultChecks("PC-CPT-001"),
-                Processes = GenerateDefaultProcesses(),
-                Services = GenerateDefaultServices(),
-                Software = GenerateDefaultSoftware(),
-                Patches = GenerateDefaultPatches()
-            },
-            new()
-            {
-                AgentId = "demo-pc-cpt-002",
-                Registration = new AgentRegistrationDto
-                {
-                    AgentId = "demo-pc-cpt-002",
-                    Hostname = "PC-CPT-002",
-                    ClientName = "Company 2",
-                    SiteName = "Cape Town HQ",
-                    OperatingSystem = "Windows 11 Enterprise",
-                    ProcessorName = "AMD Ryzen 7 5800X",
-                    CoreCount = 8,
-                    TotalMemoryBytes = 32L * 1024 * 1024 * 1024,
-                    TotalDiskBytes = 1024L * 1024 * 1024 * 1024,
-                    FreeDiskBytes = 480L * 1024 * 1024 * 1024,
-                    LoggedUser = "John",
-                    LocalIp = "192.168.1.105",
-                    AgentVersion = "1.0.0",
-                    IsLiveAgent = false
-                },
-                LatestHeartbeat = new AgentHeartbeatDto
-                {
-                    AgentId = "demo-pc-cpt-002",
-                    CpuUsagePercent = 14.2,
-                    UsedMemoryBytes = 12L * 1024 * 1024 * 1024,
-                    TotalMemoryBytes = 32L * 1024 * 1024 * 1024,
-                    Status = "Online"
-                },
-                Checks = GenerateDefaultChecks("PC-CPT-002"),
-                Processes = GenerateDefaultProcesses(),
-                Services = GenerateDefaultServices()
-            },
-            new()
-            {
-                AgentId = "demo-srv-lon-001",
-                Registration = new AgentRegistrationDto
-                {
-                    AgentId = "demo-srv-lon-001",
-                    Hostname = "SRV-LON-001",
-                    ClientName = "Company 3",
-                    SiteName = "London Office",
-                    OperatingSystem = "Windows Server 2022 Datacenter",
-                    ProcessorName = "Intel Xeon Gold 6330",
-                    CoreCount = 28,
-                    TotalMemoryBytes = 64L * 1024 * 1024 * 1024,
-                    TotalDiskBytes = 2048L * 1024 * 1024 * 1024,
-                    FreeDiskBytes = 85L * 1024 * 1024 * 1024,
-                    LoggedUser = "System",
-                    LocalIp = "10.0.4.15",
-                    AgentVersion = "1.0.0",
-                    IsLiveAgent = false
-                },
-                LatestHeartbeat = new AgentHeartbeatDto
-                {
-                    AgentId = "demo-srv-lon-001",
-                    CpuUsagePercent = 78.5,
-                    UsedMemoryBytes = 52L * 1024 * 1024 * 1024,
-                    TotalMemoryBytes = 64L * 1024 * 1024 * 1024,
-                    Status = "Warning"
-                },
-                Checks = GenerateDefaultChecks("SRV-LON-001", true),
-                Processes = GenerateDefaultProcesses(),
-                Services = GenerateDefaultServices()
-            },
-            new()
-            {
-                AgentId = "demo-pc-ny-014",
-                Registration = new AgentRegistrationDto
-                {
-                    AgentId = "demo-pc-ny-014",
-                    Hostname = "PC-NY-014",
-                    ClientName = "Company 4",
-                    SiteName = "New York",
-                    OperatingSystem = "Windows 10 Pro",
-                    ProcessorName = "Intel Core i5-11400",
-                    CoreCount = 6,
-                    TotalMemoryBytes = 16L * 1024 * 1024 * 1024,
-                    TotalDiskBytes = 512L * 1024 * 1024 * 1024,
-                    FreeDiskBytes = 210L * 1024 * 1024 * 1024,
-                    LoggedUser = "Sarah",
-                    LocalIp = "192.168.20.44",
-                    AgentVersion = "1.0.0",
-                    IsLiveAgent = false
-                },
-                LatestHeartbeat = new AgentHeartbeatDto
-                {
-                    AgentId = "demo-pc-ny-014",
-                    CpuUsagePercent = 4.1,
-                    UsedMemoryBytes = 6L * 1024 * 1024 * 1024,
-                    TotalMemoryBytes = 16L * 1024 * 1024 * 1024,
-                    Status = "Online"
-                },
-                Checks = GenerateDefaultChecks("PC-NY-014"),
-                Processes = GenerateDefaultProcesses(),
-                Services = GenerateDefaultServices()
-            },
-            new()
-            {
-                AgentId = "demo-pc-cpt-018",
-                Registration = new AgentRegistrationDto
-                {
-                    AgentId = "demo-pc-cpt-018",
-                    Hostname = "PC-CPT-018",
-                    ClientName = "Company 5",
-                    SiteName = "Cape Town",
-                    OperatingSystem = "Windows 11 Home",
-                    ProcessorName = "AMD Ryzen 5 5600G",
-                    CoreCount = 6,
-                    TotalMemoryBytes = 16L * 1024 * 1024 * 1024,
-                    TotalDiskBytes = 512L * 1024 * 1024 * 1024,
-                    FreeDiskBytes = 320L * 1024 * 1024 * 1024,
-                    LoggedUser = "Karen",
-                    LocalIp = "192.168.1.118",
-                    AgentVersion = "1.0.0",
-                    IsLiveAgent = false
-                },
-                LatestHeartbeat = new AgentHeartbeatDto
-                {
-                    AgentId = "demo-pc-cpt-018",
-                    Status = "Offline"
-                },
-                Checks = GenerateDefaultChecks("PC-CPT-018"),
-                Processes = GenerateDefaultProcesses(),
-                Services = GenerateDefaultServices()
-            }
-        };
-
-        foreach (var agent in list)
-        {
-            _agents[agent.AgentId] = agent;
-        }
-    }
-
-    private static List<SystemCheckDto> GenerateDefaultChecks(string hostname, bool isWarning = false) =>
-    [
-        new() { Name = "Windows Defender Antivirus", Category = "Security", IsPassing = true, StatusText = "Passing", Details = "Real-time protection enabled, definitions up-to-date." },
-        new() { Name = "Windows Firewall", Category = "Security", IsPassing = true, StatusText = "Passing", Details = "Domain, Private, and Public profiles are active." },
-        new() { Name = "Disk Space (Drive C:)", Category = "Storage", IsPassing = !isWarning, StatusText = isWarning ? "Warning (<15% free)" : "Passing", Details = isWarning ? "Low disk space alert on OS drive." : "28% free space available." },
-        new() { Name = "CPU Load Check", Category = "Performance", IsPassing = !isWarning, StatusText = isWarning ? "High Load" : "Passing", Details = isWarning ? "CPU sustained above 75% for 10 minutes." : "Normal average load." },
-        new() { Name = "Memory Utilization", Category = "Performance", IsPassing = true, StatusText = "Passing", Details = "Healthy memory usage." },
-        new() { Name = "Windows Update Service", Category = "System", IsPassing = true, StatusText = "Passing", Details = "wuauserv service is running." },
-        new() { Name = "Pending Reboot Check", Category = "System", IsPassing = true, StatusText = "Passing", Details = "No reboot required." },
-        new() { Name = "Event Log Errors", Category = "System", IsPassing = true, StatusText = "Passing", Details = "0 critical system errors in last 24 hours." },
-        new() { Name = "Vi-RMM Agent Service", Category = "System", IsPassing = true, StatusText = "Passing", Details = "Agent daemon heartbeating reliably." }
-    ];
-
-    private static List<ProcessDto> GenerateDefaultProcesses() =>
-    [
-        new() { Id = 4, Name = "System", WorkingSetBytes = 120L * 1024 * 1024, CpuPercent = 0.5, ThreadCount = 210, UserName = "SYSTEM" },
-        new() { Id = 1240, Name = "explorer.exe", WorkingSetBytes = 85L * 1024 * 1024, CpuPercent = 1.2, ThreadCount = 64, UserName = "Ashley", MainWindowTitle = "Explorer" },
-        new() { Id = 3492, Name = "chrome.exe", WorkingSetBytes = 450L * 1024 * 1024, CpuPercent = 3.4, ThreadCount = 48, UserName = "Ashley", MainWindowTitle = "Vi-RMM Dashboard - Google Chrome" },
-        new() { Id = 5120, Name = "Vi-RMM.Agent.exe", WorkingSetBytes = 28L * 1024 * 1024, CpuPercent = 0.1, ThreadCount = 12, UserName = "SYSTEM" },
-        new() { Id = 6840, Name = "powershell.exe", WorkingSetBytes = 64L * 1024 * 1024, CpuPercent = 0.0, ThreadCount = 18, UserName = "Ashley" },
-        new() { Id = 8900, Name = "svchost.exe", WorkingSetBytes = 42L * 1024 * 1024, CpuPercent = 0.2, ThreadCount = 24, UserName = "NETWORK SERVICE" }
-    ];
-
-    private static List<ServiceItemDto> GenerateDefaultServices() =>
-    [
-        new() { Name = "ViRMMAgent", DisplayName = "Vi-RMM Agent", Status = "Running", StartType = "Automatic", CanStop = true },
-        new() { Name = "WinDefend", DisplayName = "Microsoft Defender Antivirus Service", Status = "Running", StartType = "Automatic", CanStop = false },
-        new() { Name = "wuauserv", DisplayName = "Windows Update", Status = "Running", StartType = "Manual", CanStop = true },
-        new() { Name = "Spooler", DisplayName = "Print Spooler", Status = "Running", StartType = "Automatic", CanStop = true },
-        new() { Name = "LanmanServer", DisplayName = "Server", Status = "Running", StartType = "Automatic", CanStop = true },
-        new() { Name = "Dnscache", DisplayName = "DNS Client", Status = "Running", StartType = "Automatic", CanStop = false },
-        new() { Name = "BITS", DisplayName = "Background Intelligent Transfer Service", Status = "Running", StartType = "Automatic", CanStop = true },
-        new() { Name = "RemoteRegistry", DisplayName = "Remote Registry", Status = "Stopped", StartType = "Disabled", CanStop = false }
-    ];
-
-    private static List<InstalledSoftwareDto> GenerateDefaultSoftware() =>
-    [
-        new() { Name = "Google Chrome", Version = "127.0.6533.89", Publisher = "Google LLC", InstallDate = "2026-08-01", SizeFormatted = "280 MB" },
-        new() { Name = "Vi-RMM Endpoint Agent", Version = "1.0.0", Publisher = "Vi-RMM", InstallDate = "2026-08-13", SizeFormatted = "18 MB" },
-        new() { Name = "Microsoft Visual Studio Code", Version = "1.92.0", Publisher = "Microsoft Corporation", InstallDate = "2026-07-20", SizeFormatted = "340 MB" },
-        new() { Name = ".NET Runtime 10.0.0 (x64)", Version = "10.0.0", Publisher = "Microsoft Corporation", InstallDate = "2026-08-10", SizeFormatted = "140 MB" },
-        new() { Name = "7-Zip 24.07 (x64)", Version = "24.07", Publisher = "Igor Pavlov", InstallDate = "2026-06-15", SizeFormatted = "5.2 MB" }
-    ];
-
-    private static List<WindowsPatchDto> GenerateDefaultPatches() =>
-    [
-        new() { KbArticleId = "KB5041585", Title = "2026-08 Cumulative Update for Windows 11 Version 23H2", Severity = "Critical", Status = "Installed", InstalledOnUtc = DateTime.UtcNow.AddDays(-5) },
-        new() { KbArticleId = "KB5041080", Title = "2026-08 Security Update for .NET Framework 4.8.1", Severity = "Important", Status = "Installed", InstalledOnUtc = DateTime.UtcNow.AddDays(-5) },
-        new() { KbArticleId = "KB890830", Title = "Windows Malicious Software Removal Tool x64 - v5.127", Severity = "Moderate", Status = "Installed", InstalledOnUtc = DateTime.UtcNow.AddDays(-3) }
-    ];
 }

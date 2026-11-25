@@ -1,6 +1,7 @@
 @page "/login"
 @using ViRMM.Services
 @using Microsoft.AspNetCore.Components.Web
+@inject IWebHostEnvironment Environment
 @inject UserStore Users
 @inject SessionState Session
 @inject NavigationManager Navigation
@@ -22,14 +23,25 @@
         }
 
         <button class="primary-button full" @onclick="SignIn">Sign In</button>
-        <small class="demo-hint">Demo: admin / ChangeMe123!</small>
+        @if (Environment.IsDevelopment())
+        {
+            <small class="demo-hint">Development login: admin / admin</small>
+        }
     </div>
 </div>
 
 @code {
-    private string username = "";
+    private string username = "admin";
     private string password = "";
     private string error = "";
+
+    protected override void OnInitialized()
+    {
+        if (Environment.IsDevelopment())
+        {
+            password = "admin";
+        }
+    }
 
     private void SignIn()
     {

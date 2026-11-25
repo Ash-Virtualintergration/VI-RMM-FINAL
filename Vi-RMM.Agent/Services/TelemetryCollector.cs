@@ -18,8 +18,8 @@ public class TelemetryCollector
         {
             AgentId = agentId,
             Hostname = Environment.MachineName,
-            ClientName = string.IsNullOrWhiteSpace(clientName) ? "Default Client" : clientName,
-            SiteName = string.IsNullOrWhiteSpace(siteName) ? "Main Site" : siteName,
+            ClientName = clientName,
+            SiteName = siteName,
             OperatingSystem = RuntimeInformation.OSDescription,
             Architecture = RuntimeInformation.OSArchitecture.ToString(),
             ProcessorName = GetProcessorName(),
@@ -76,8 +76,6 @@ public class TelemetryCollector
             }
         }
         catch { }
-
-        if (string.IsNullOrEmpty(reg.LocalIp)) reg.LocalIp = "127.0.0.1";
 
         return reg;
     }
@@ -140,7 +138,7 @@ public class TelemetryCollector
                 return ((long)memStatus.ullTotalPhys, (long)memStatus.ullAvailPhys);
             }
         }
-        return (16L * 1024 * 1024 * 1024, 8L * 1024 * 1024 * 1024);
+        return (0, 0);
     }
 
     private static double GetCpuUsagePercent()
@@ -149,7 +147,7 @@ public class TelemetryCollector
         {
             var now = DateTime.UtcNow;
             var timePassed = (now - _lastCpuCheck).TotalMilliseconds;
-            if (timePassed < 100) return 5.0;
+            if (timePassed < 100) return 0;
 
             var currentCpuTime = Process.GetCurrentProcess().TotalProcessorTime;
             _lastCpuCheck = now;
@@ -157,11 +155,11 @@ public class TelemetryCollector
             _lastCpuTime = currentCpuTime;
 
             var cpuUsage = (cpuUsedMs / (timePassed * Environment.ProcessorCount)) * 100;
-            return Math.Round(Math.Clamp(cpuUsage + 4.5, 2.0, 99.0), 1);
+            return Math.Round(Math.Clamp(cpuUsage, 0.0, 100.0), 1);
         }
         catch
         {
-            return 8.0;
+            return 0;
         }
     }
 

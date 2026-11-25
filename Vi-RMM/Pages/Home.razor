@@ -102,7 +102,7 @@
                             </span>
                             <span>@device.User</span>
                             <span class="cell-os" title="@device.OperatingSystem">
-                                @(string.IsNullOrEmpty(device.Registration.LocalIp) ? "127.0.0.1" : device.Registration.LocalIp)
+                                @(string.IsNullOrEmpty(device.Registration.LocalIp) ? "—" : device.Registration.LocalIp)
                                 <small>@FormatOs(device.OperatingSystem)</small>
                             </span>
                             <span>
@@ -112,13 +112,13 @@
                             <span class="cell-metrics">
                                 <div class="mini-metric">
                                     <span class="metric-label">CPU:</span>
-                                    <div class="mini-bar"><div style="width:@((int)device.CpuPercent)%"></div></div>
-                                    <span>@((int)device.CpuPercent)%</span>
+                                    <div class="mini-bar"><div style="width:@(device.LatestHeartbeat is null ? 0 : (int)device.CpuPercent)%"></div></div>
+                                    <span>@(device.LatestHeartbeat is null ? "—" : $"{(int)device.CpuPercent}%")</span>
                                 </div>
                                 <div class="mini-metric">
                                     <span class="metric-label">RAM:</span>
-                                    <div class="mini-bar"><div style="width:@((int)device.MemoryUsedPercent)%"></div></div>
-                                    <span>@((int)device.MemoryUsedPercent)%</span>
+                                    <div class="mini-bar"><div style="width:@(device.LatestHeartbeat is null ? 0 : (int)device.MemoryUsedPercent)%"></div></div>
+                                    <span>@(device.LatestHeartbeat is null ? "—" : $"{(int)device.MemoryUsedPercent}%")</span>
                                 </div>
                             </span>
                             <span>@device.LastSeenFormatted</span>
@@ -183,24 +183,31 @@
                     <div class="summary-grid">
                         <div class="summary-card">
                             <h3>Hardware Details</h3>
-                            <p>▣ @(string.IsNullOrEmpty(selectedAgent.Registration.ProcessorName) ? "Intel Core Processor" : selectedAgent.Registration.ProcessorName) · @selectedAgent.Registration.CoreCount Cores</p>
-                            <p>▦ @FormatGb(selectedAgent.Registration.TotalMemoryBytes) Total RAM (@((int)selectedAgent.MemoryUsedPercent)% in use)</p>
+                            <p>▣ @(string.IsNullOrEmpty(selectedAgent.Registration.ProcessorName) ? "Not reported" : selectedAgent.Registration.ProcessorName) · @selectedAgent.Registration.CoreCount Cores</p>
+                            <p>▦ @FormatGb(selectedAgent.Registration.TotalMemoryBytes) Total RAM (@(selectedAgent.LatestHeartbeat is null ? "Not reported" : $"{(int)selectedAgent.MemoryUsedPercent}% in use"))</p>
                             <p>▤ Primary Disk: @FormatGb(selectedAgent.Registration.TotalDiskBytes) Storage</p>
-                            <p>🌐 Local IP: @(string.IsNullOrEmpty(selectedAgent.Registration.LocalIp) ? "192.168.1.104" : selectedAgent.Registration.LocalIp)</p>
+                            <p>🌐 Local IP: @(string.IsNullOrEmpty(selectedAgent.Registration.LocalIp) ? "Not reported" : selectedAgent.Registration.LocalIp)</p>
                             <p>👤 Logged-in User: @selectedAgent.User</p>
                         </div>
 
                         <div class="summary-card">
                             <h3>Health Checks Status</h3>
-                            <div class="check-summary-row">
-                                <div class="check-number @(selectedAgent.Checks.All(c => c.IsPassing) ? "check-pass" : "check-warn")">
-                                    @(selectedAgent.Checks.All(c => c.IsPassing) ? "✓" : "!")
+                            @if (selectedAgent.Checks.Count == 0)
+                            {
+                                <p class="muted">No health-check data received.</p>
+                            }
+                            else
+                            {
+                                <div class="check-summary-row">
+                                    <div class="check-number @(selectedAgent.Checks.All(c => c.IsPassing) ? "check-pass" : "check-warn")">
+                                        @(selectedAgent.Checks.All(c => c.IsPassing) ? "✓" : "!")
+                                    </div>
+                                    <div>
+                                        <strong>@selectedAgent.Checks.Count(c => c.IsPassing) of @selectedAgent.Checks.Count checks passing</strong>
+                                        <p class="muted">@(selectedAgent.Checks.All(c => c.IsPassing) ? "All reported checks are healthy." : "Action required on non-passing checks.")</p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <strong>@selectedAgent.Checks.Count(c => c.IsPassing) of @selectedAgent.Checks.Count checks passing</strong>
-                                    <p class="muted">@(selectedAgent.Checks.All(c => c.IsPassing) ? "All automated checks are healthy." : "Action required on non-passing checks.")</p>
-                                </div>
-                            </div>
+                            }
                             <button type="button" class="secondary-button" style="margin-top:12px;font-size:12px;" @onclick='() => SetTab("Checks")'>View Health Checks →</button>
                         </div>
 
@@ -217,9 +224,7 @@
                             }
                             else
                             {
-                                <p><strong>C: (NTFS)</strong></p>
-                                <div class="progress"><div style="width:72%"></div></div>
-                                <strong>144 GB free of 512 GB</strong>
+                                <p class="muted">No drive data received.</p>
                             }
                         </div>
                     </div>
@@ -256,18 +261,25 @@
                         </div>
 
                         <div class="checks-grid">
-                            @foreach (var check in selectedAgent.Checks)
+                            @if (selectedAgent.Checks.Count == 0)
                             {
-                                <div class="check-item-card @(check.IsPassing ? "passing" : "failing")">
-                                    <div class="check-status-badge">
-                                        @(check.IsPassing ? "✓ PASS" : "⚠️ WARN")
+                                <p class="muted">No health-check data received.</p>
+                            }
+                            else
+                            {
+                                @foreach (var check in selectedAgent.Checks)
+                                {
+                                    <div class="check-item-card @(check.IsPassing ? "passing" : "failing")">
+                                        <div class="check-status-badge">
+                                            @(check.IsPassing ? "✓ PASS" : "⚠️ WARN")
+                                        </div>
+                                        <div class="check-info">
+                                            <strong>@check.Name</strong>
+                                            <span class="check-cat">@check.Category</span>
+                                            <p>@check.Details</p>
+                                        </div>
                                     </div>
-                                    <div class="check-info">
-                                        <strong>@check.Name</strong>
-                                        <span class="check-cat">@check.Category</span>
-                                        <p>@check.Details</p>
-                                    </div>
-                                </div>
+                                }
                             }
                         </div>
                     </div>
@@ -277,7 +289,6 @@
                     <div class="tasks-container">
                         <div class="tasks-header">
                             <h3>Scheduled Endpoint Maintenance Tasks</h3>
-                            <button type="button" class="primary-button" @onclick="RunMaintenanceTask">＋ Run Task</button>
                         </div>
                         <div class="task-table-wrap">
                             <table class="simple-table">
@@ -285,9 +296,7 @@
                                     <tr><th>Task Name</th><th>Schedule</th><th>Last Result</th><th>Status</th><th>Action</th></tr>
                                 </thead>
                                 <tbody>
-                                    <tr><td>Daily Disk Cleanup & Temp Purge</td><td>Daily 02:00 AM</td><td>Success (2.4 GB freed)</td><td><span class="status-pill active">Enabled</span></td><td><button type="button" class="mini-btn" @onclick="RunMaintenanceTask">Run Now</button></td></tr>
-                                    <tr><td>Windows Defender Definitions Update</td><td>Every 6 Hours</td><td>Success (Defs 1.415.89.0)</td><td><span class="status-pill active">Enabled</span></td><td><button type="button" class="mini-btn" @onclick="RunMaintenanceTask">Run Now</button></td></tr>
-                                    <tr><td>Automated System Reboot Policy</td><td>Sunday 03:00 AM</td><td>Success</td><td><span class="status-pill active">Enabled</span></td><td><button type="button" class="mini-btn" @onclick="RunMaintenanceTask">Run Now</button></td></tr>
+                                    <tr><td colspan="5" class="muted">No scheduled tasks configured.</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -298,7 +307,7 @@
                     <div class="patches-container">
                         <div class="patches-header">
                             <h3>Windows Patch Compliance</h3>
-                            <button type="button" class="primary-button" @onclick="ScanPatches">🔍 Scan Missing Updates</button>
+                            <span class="muted">Patch inventory is not collected by the current agent.</span>
                         </div>
                         <div class="patch-table-wrap">
                             <table class="simple-table">
@@ -306,15 +315,22 @@
                                     <tr><th>KB Article</th><th>Title</th><th>Severity</th><th>Status</th><th>Installed Date</th></tr>
                                 </thead>
                                 <tbody>
-                                    @foreach (var patch in selectedAgent.Patches)
+                                    @if (selectedAgent.Patches.Count == 0)
                                     {
-                                        <tr>
-                                            <td><strong>@patch.KbArticleId</strong></td>
-                                            <td>@patch.Title</td>
-                                            <td><span class="severity-badge @patch.Severity.ToLowerInvariant()">@patch.Severity</span></td>
-                                            <td><span class="status-pill active">@patch.Status</span></td>
-                                            <td>@(patch.InstalledOnUtc?.ToString("yyyy-MM-dd") ?? "Recent")</td>
-                                        </tr>
+                                        <tr><td colspan="5" class="muted">No patch data received.</td></tr>
+                                    }
+                                    else
+                                    {
+                                        @foreach (var patch in selectedAgent.Patches)
+                                        {
+                                            <tr>
+                                                <td><strong>@patch.KbArticleId</strong></td>
+                                                <td>@patch.Title</td>
+                                                <td><span class="severity-badge @patch.Severity.ToLowerInvariant()">@patch.Severity</span></td>
+                                                <td><span class="status-pill active">@patch.Status</span></td>
+                                                <td>@(patch.InstalledOnUtc?.ToString("yyyy-MM-dd") ?? "—")</td>
+                                            </tr>
+                                        }
                                     }
                                 </tbody>
                             </table>
@@ -334,15 +350,22 @@
                                     <tr><th>Application Name</th><th>Version</th><th>Publisher</th><th>Install Date</th><th>Size</th></tr>
                                 </thead>
                                 <tbody>
-                                    @foreach (var app in selectedAgent.Software.OrderBy(s => s.Name))
+                                    @if (selectedAgent.Software.Count == 0)
                                     {
-                                        <tr>
-                                            <td><strong>@app.Name</strong></td>
-                                            <td><code>@app.Version</code></td>
-                                            <td>@app.Publisher</td>
-                                            <td>@app.InstallDate</td>
-                                            <td>@app.SizeFormatted</td>
-                                        </tr>
+                                        <tr><td colspan="5" class="muted">No software inventory received.</td></tr>
+                                    }
+                                    else
+                                    {
+                                        @foreach (var app in selectedAgent.Software.OrderBy(s => s.Name))
+                                        {
+                                            <tr>
+                                                <td><strong>@app.Name</strong></td>
+                                                <td><code>@app.Version</code></td>
+                                                <td>@app.Publisher</td>
+                                                <td>@app.InstallDate</td>
+                                                <td>@app.SizeFormatted</td>
+                                            </tr>
+                                        }
                                     }
                                 </tbody>
                             </table>
@@ -359,16 +382,23 @@
                                     <tr><th>Timestamp</th><th>Operator</th><th>Category</th><th>Action</th><th>Details</th><th>Status</th></tr>
                                 </thead>
                                 <tbody>
-                                    @foreach (var entry in AuditSvc.All.Where(e => e.TargetAgent == selectedAgent.Hostname || e.TargetAgent == "System"))
+                                    @if (!AuditSvc.All.Any(e => e.TargetAgent == selectedAgent.Hostname || e.TargetAgent == "System"))
                                     {
-                                        <tr>
-                                            <td>@entry.TimestampUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
-                                            <td><strong>@entry.User</strong></td>
-                                            <td><span class="cat-badge">@entry.Category</span></td>
-                                            <td>@entry.Action</td>
-                                            <td><code>@entry.Details</code></td>
-                                            <td><span class="status-pill active">@entry.Status</span></td>
-                                        </tr>
+                                        <tr><td colspan="6" class="muted">No audit activity recorded for this endpoint.</td></tr>
+                                    }
+                                    else
+                                    {
+                                        @foreach (var entry in AuditSvc.All.Where(e => e.TargetAgent == selectedAgent.Hostname || e.TargetAgent == "System"))
+                                        {
+                                            <tr>
+                                                <td>@entry.TimestampUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                                <td><strong>@entry.User</strong></td>
+                                                <td><span class="cat-badge">@entry.Category</span></td>
+                                                <td>@entry.Action</td>
+                                                <td><code>@entry.Details</code></td>
+                                                <td><span class="status-pill active">@entry.Status</span></td>
+                                            </tr>
+                                        }
                                     }
                                 </tbody>
                             </table>
@@ -431,7 +461,7 @@
     private IReadOnlyList<ConnectedAgent> AllAgents => AgentSvc.GetAllAgents();
 
     private IEnumerable<IGrouping<string, ConnectedAgent>> ClientGroups =>
-        AllAgents.GroupBy(a => string.IsNullOrEmpty(a.Client) ? "Default Client" : a.Client);
+        AllAgents.GroupBy(a => string.IsNullOrEmpty(a.Client) ? "Unassigned" : a.Client);
 
     private IEnumerable<ConnectedAgent> FilteredDevices =>
         AllAgents
@@ -549,22 +579,10 @@
         await AgentSvc.GetChecksAsync(selectedAgent.AgentId);
     }
 
-    private async Task ScanPatches()
-    {
-        if (selectedAgent == null) return;
-        await AgentSvc.ExecuteCommandAsync(selectedAgent.AgentId, "Get-HotFix | Select-Object -First 10 HotFixID, Description, InstalledOn", "PowerShell");
-    }
-
     private async Task AuditSoftware()
     {
         if (selectedAgent == null) return;
         await AgentSvc.GetSoftwareAsync(selectedAgent.AgentId);
-    }
-
-    private void RunMaintenanceTask()
-    {
-        if (selectedAgent == null) return;
-        AuditSvc.Log(Session.CurrentUser?.FullName ?? "Admin", selectedAgent.Hostname, "Run Task", "Task", "Executed Disk Cleanup and Maintenance");
     }
 
     private void SaveNotes()
@@ -589,7 +607,7 @@
 
     private static string FormatGb(long bytes)
     {
-        if (bytes <= 0) return "0 GB";
+        if (bytes <= 0) return "Not reported";
         var gb = Math.Round((double)bytes / (1024 * 1024 * 1024), 1);
         return $"{gb} GB";
     }

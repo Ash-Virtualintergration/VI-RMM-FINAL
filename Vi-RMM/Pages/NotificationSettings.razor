@@ -16,11 +16,11 @@
         <div class="summary-card">
             <h3>📧 Email (SMTP) Alerting</h3>
             <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px;">
-                <label>SMTP Host: <input class="full-input" value="smtp.office365.com" /></label>
-                <label>Port: <input class="full-input" value="587" /></label>
-                <label>Alert Recipient Email: <input class="full-input" value="noc-alerts@company.com" /></label>
-                <label class="checkbox-label"><input type="checkbox" checked /> Send email when server goes offline</label>
-                <label class="checkbox-label"><input type="checkbox" checked /> Send email on critical disk space alert</label>
+                <label>SMTP Host: <input class="full-input" /></label>
+                <label>Port: <input class="full-input" type="number" /></label>
+                <label>Alert Recipient Email: <input class="full-input" type="email" /></label>
+                <label class="checkbox-label"><input type="checkbox" /> Send email when server goes offline</label>
+                <label class="checkbox-label"><input type="checkbox" /> Send email on critical disk space alert</label>
             </div>
         </div>
 
@@ -28,8 +28,8 @@
             <h3>💬 Webhook Integrations (Slack / Teams / Discord)</h3>
             <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px;">
                 <label>Webhook URL: <input class="full-input" placeholder="https://discord.com/api/webhooks/..." /></label>
-                <label class="checkbox-label"><input type="checkbox" checked /> Post critical alerts to Webhook</label>
-                <label class="checkbox-label"><input type="checkbox" checked /> Post daily summary at 08:00 AM</label>
+                <label class="checkbox-label"><input type="checkbox" /> Post critical alerts to Webhook</label>
+                <label class="checkbox-label"><input type="checkbox" /> Post daily summary at 08:00 AM</label>
             </div>
         </div>
     </div>
